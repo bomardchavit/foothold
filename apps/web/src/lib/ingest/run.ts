@@ -304,7 +304,8 @@ export async function bootstrapUsCompanies(opts: { limit?: number; onProgress?: 
         registered++;
         const r = await ingestSourceJob({ sourceId: row.id });
         jobs += r?.inserted ?? 0;
-        log(`${c.name} (${src.kind.toLowerCase()}/${src.slug}): ${r?.fetched ?? 0} fetched, ${r?.inserted ?? 0} new${r?.skipped ? `, ${r.skipped} outside scope` : ""}`);
+        const unchanged = r && "notModified" in r && r.notModified;
+        log(`${c.name} (${src.kind.toLowerCase()}/${src.slug}): ${unchanged ? "no change since the last poll" : `${r?.fetched ?? 0} listed, ${r?.inserted ?? 0} new${r?.updated ? `, ${r.updated} updated` : ""}${r?.skipped ? `, ${r.skipped} outside scope` : ""}`}`);
       }
     } catch (e) { log(`${c.name}: failed (${e instanceof Error ? e.message : String(e)})`); }
   }

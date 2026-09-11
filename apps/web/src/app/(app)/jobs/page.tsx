@@ -65,9 +65,9 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
         </div>
         <div className="max-w-[980px] px-4 sm:px-6"><Pagination page={filters.page} pageSize={feed.pageSize} count={feed.count} /></div>
         <p className="mt-6 max-w-[980px] px-4 text-xs text-muted-foreground sm:px-6" data-testid="feed-count">
-          {feed.count} roles{feed.hidden > 0 ? ` · ${feed.hidden} hidden as low quality` : ""}
-          {freshness.addedToday > 0 ? ` · ${freshness.addedToday} added today` : ""}
-          {freshness.lastRunAt ? ` · boards checked ${formatDistanceToNowStrict(freshness.lastRunAt, { addSuffix: true })}` : ""}
+          {feed.count.toLocaleString()} roles{feed.hidden > 0 ? ` · ${feed.hidden.toLocaleString()} hidden as low quality` : ""}
+          {freshness.addedToday > 0 ? ` · ${freshness.addedToday.toLocaleString()} posted today` : ""}
+          {freshness.lastRunAt ? ` · ${freshness.sources} boards, last checked ${formatDistanceToNowStrict(freshness.lastRunAt, { addSuffix: true })}` : ""}
         </p>
       </div>
       <RightRail user={{ name: user.name, email: user.email, image: user.image }} savedFilters={savedFilters.map((s) => ({ id: s.id, name: s.name, params: s.paramsJson as Record<string, string> }))} currentParams={params as Record<string, string | string[] | undefined>} activeId={sfId ?? null} />

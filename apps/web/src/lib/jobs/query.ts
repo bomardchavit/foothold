@@ -158,7 +158,8 @@ export async function feedFreshness(): Promise<FeedFreshness> {
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
   const [latest, addedToday, sources] = await Promise.all([
     prisma.jobSource.findFirst({ where: { enabled: true, lastRunAt: { not: null }, kind: { notIn: ["SEED", "MANUAL"] } }, orderBy: { lastRunAt: "desc" }, select: { lastRunAt: true } }),
-    prisma.job.count({ where: { firstSeenAt: { gte: midnight }, closedAt: null, isLowQuality: false } }),
+    // Posted today, not "first seen by us today": after a fresh install the second number is the whole catalogue.
+    prisma.job.count({ where: { postedAt: { gte: midnight }, closedAt: null, isLowQuality: false } }),
     prisma.jobSource.count({ where: { enabled: true, kind: { notIn: ["SEED", "MANUAL"] } } }),
   ]);
   return { lastRunAt: latest?.lastRunAt ?? null, addedToday, sources };
