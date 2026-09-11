@@ -68,7 +68,13 @@ npm run scrape -- greenhouse:stripe                # one source by kind:slug
 npm run scrape                                     # every enabled source once
 npm run scrape:watch                               # every 30 minutes (or run `npm run worker` for the 6-hourly schedule)
 npm run scrape -- export                           # data/exports/jobs.json, normalized
+npm run scrape -- logos --retry                    # every company gets a logo (site icon → favicon services → generated mark); --retry re-probes generated marks
+npm run scrape -- logos --revalidate               # re-check stored logos against the shape rules, replace share banners and broken files
+npm run scrape -- industries                       # curated employer industries overwrite keyword guesses (Company + Job rows)
+npm run scrape -- prune                            # retire postings outside JOBS_COUNTRIES
 ```
+
+Postings a board stops returning are marked closed and drop out of the feed, scoring, digests and similar-roles (rows a user tracked are kept, with a "No longer listed" badge on the job page).
 
 **Runs on its own.** While the app is running, an in-process scheduler re-runs every enabled source every `SCRAPE_INTERVAL_MIN` minutes (default 120); with `JOBS_MODE=queue` the worker takes over on a 6-hour schedule. `JOBS_COUNTRIES=US` (default) keeps only US-located, remote, or unplaceable postings and prunes the rest. Company logos are fetched from each company's own site (apple-touch-icon / icon links / favicon, robots-compliant) and served from `/api/logo/:companyId`, with a public favicon service as fallback and an initials tile after that. **No API keys are involved in scraping**; only Adzuna/USAJobs (extra sources) and Anthropic/Voyage (AI features) need keys.
 
@@ -87,7 +93,7 @@ Each posting is normalized (title, company, location, remote/hybrid/onsite, empl
 | Phase | What to try |
 |---|---|
 | 1 Profile | Sign in with a new email → upload `data/seed/resumes/priya_natarajan.pdf` → review the structured profile (every field editable) → set preferences. |
-| 2 Matching | `/feed`: ranked cards with the six-segment fit bar. Open a job: full breakdown with evidence, you-vs-requirements table, keyword gaps. Filters: fit threshold, posted-within, location, remote, seniority, industry, salary, H-1B signal, low-quality toggle. |
+| 2 Matching | `/jobs`: ranked cards with the company logo, fit ring and signal rows. Open a job: the same score card (apply with autofill, hide, like, one status control), a check/partial/x analysis of every component with its evidence, you-vs-requirements, keyword gaps, company card (size, industry, H-1B history, open roles) and similar roles. Filters: fit threshold, posted-within, location, remote, seniority, industry, salary, H-1B signal, low-quality toggle. |
 | 3 Copilot | On a job, “Ask Belay why I match”. Every claim carries `[P#]`/`[J#]`/`[M#]` chips; hover to see the source line. Try gaps, cover letter, interview prep, should I apply. |
 | 4 Résumé AI | On a job, “Tailor my résumé”. Changes tab shows per-bullet diffs labeled Reworded / Expanded / Added; keep or revert each; “Grounded only” strips unverified content; export PDF or DOCX. |
 | 5 Tracker + Insights | `/tracker` kanban with timestamps, notes, résumé used. `/insights`: skills you are missing most across your top 100 matches. |
