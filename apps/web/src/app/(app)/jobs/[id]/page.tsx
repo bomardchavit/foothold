@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { formatDistanceToNowStrict } from "date-fns";
 import { SENIORITY_LABELS } from "@foothold/shared";
@@ -75,7 +76,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
         <JobActions job={{ id: job.id, title: job.title, company: job.company.name, applyUrl: job.applyUrl }} application={application} />
         <InsidersPanel companyId={job.company.id} companyName={job.company.name} jobId={job.id} />
-        <Button asChild variant="ghost" className="w-full"><a href="/jobs">Back to jobs</a></Button>
+        <Button asChild variant="ghost" className="w-full"><Link href="/jobs">Back to jobs</Link></Button>
       </aside>
     </div>
   );

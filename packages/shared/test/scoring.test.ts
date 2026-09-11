@@ -44,6 +44,16 @@ describe("scoreMatch", () => {
     const lo = scoreMatch(profile, job, 0.3, "voyage").components.find((c) => c.key === "semantic")!;
     expect(hi.score).toBe(100); expect(lo.score).toBe(0);
   });
+  it("blends title-vs-target-role fit into profile relevance and damps sparse skill lists", () => {
+    const p = { ...profile, targetRoles: ["Backend Engineer"] };
+    const eng = scoreMatch(p, { ...job, title: "Senior Backend Engineer" }, 0.9, "voyage").components.find((c) => c.key === "semantic")!;
+    const tax = scoreMatch(p, { ...job, title: "Global Filing Specialist, Tax" }, 0.9, "voyage").components.find((c) => c.key === "semantic")!;
+    expect(eng.score).toBe(100); expect(tax.score).toBe(50);
+    const noEmb = scoreMatch(p, { ...job, title: "Software Developer" }, null, null).components.find((c) => c.key === "semantic")!;
+    expect(noEmb.status).toBe("scored"); expect(noEmb.score).toBe(50);
+    const sparse = scoreMatch(profile, { ...job, requiredSkills: ["Python"], preferredSkills: [] }, null, null).components.find((c) => c.key === "skills")!;
+    expect(sparse.score).toBe(75);
+  });
   it("location: same city 100, remote job 100, remote-only candidate on-site penalty", () => {
     expect(scoreMatch(profile, job, null, null).components.find((c) => c.key === "location")!.score).toBe(100);
     expect(scoreMatch(profile, { ...job, isRemote: true }, null, null).components.find((c) => c.key === "location")!.score).toBe(100);

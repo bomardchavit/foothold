@@ -14,8 +14,10 @@ export interface ScoreProfileInput {
   industries: string[];
   locations: string[];
   remotePref: RemotePrefKey;
+  targetRoles?: string[];
 }
 export interface ScoreJobInput {
+  title?: string;
   requiredSkills: string[];
   preferredSkills: string[];
   seniority: SeniorityKey;
@@ -90,6 +92,7 @@ function skillsComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
   else if (req.length === 0) { score = (prefHit / pref.length) * 100; evidence.push(`${prefHit} of ${pref.length} preferred skills.`); }
   else if (pref.length === 0) { score = (reqHit / req.length) * 100; evidence.push(`${reqHit} of ${req.length} required skills.`); }
   else { score = (0.75 * reqHit / req.length + 0.25 * prefHit / pref.length) * 100; evidence.push(`${reqHit} of ${req.length} required, ${prefHit} of ${pref.length} preferred.`); }
+  if (status === "scored" && req.length + pref.length < 3) { score *= 0.75; evidence.push("The posting names only a couple of skills, so this component counts for less."); }
   if (matched.length) evidence.push(`You have: ${matched.slice(0, 8).join(", ")}${matched.length > 8 ? ` +${matched.length - 8} more` : ""}.`);
   if (missingRequired.length) evidence.push(`Missing required: ${missingRequired.slice(0, 8).join(", ")}${missingRequired.length > 8 ? ` +${missingRequired.length - 8} more` : ""}.`);
   if (missingPreferred.length) evidence.push(`Missing preferred: ${missingPreferred.slice(0, 6).join(", ")}${missingPreferred.length > 6 ? ` +${missingPreferred.length - 6} more` : ""}.`);
@@ -102,11 +105,39 @@ function viaSkill(profileSkills: string[], target: string): string {
   return profileSkills[0] ?? "profile";
 }
 
-function semanticComponent(cos: number | null, provider: string | null) {
-  if (cos == null) return { score: 0, status: "na" as ComponentStatus, evidence: ["No embedding available yet."] };
-  const cal = SEMANTIC_CALIBRATION[provider ?? "local"] ?? SEMANTIC_CALIBRATION.local;
-  const score = clamp(((cos - cal.lo) / (cal.hi - cal.lo)) * 100);
-  return { score: r(score), status: "scored" as ComponentStatus, evidence: [`Semantic similarity between your profile and the posting: ${cos.toFixed(2)} (${provider ?? "local"} embeddings).`] };
+const ROLE_STOP = new Set(["senior", "sr", "junior", "jr", "staff", "principal", "lead", "associate", "intern", "ii", "iii", "iv", "i", "of", "and", "the", "a", "an", "to", "for", "in", "at", "with", "new", "grad", "level", "remote", "us", "usa"]);
+const ROLE_SYNONYMS: Record<string, string> = { developer: "engineer", programmer: "engineer", engineering: "engineer", swe: "engineer", sde: "engineer", frontend: "front-end", backend: "back-end", fullstack: "full-stack", ml: "machine-learning", "machine": "machine-learning", learning: "machine-learning", pm: "product", mgr: "manager", management: "manager" };
+const roleTokens = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9+#\-\s]/g, " ").split(/[\s,/]+/).filter((t) => t && !ROLE_STOP.has(t)).map((t) => ROLE_SYNONYMS[t] ?? t));
+
+/** How well the job title matches any of the candidate's target roles (0..1). */
+export function roleFit(targetRoles: string[] | undefined, title: string | undefined): number | null {
+  if (!targetRoles?.length || !title) return null;
+  const tt = roleTokens(title);
+  let best = 0;
+  for (const role of targetRoles) {
+    const rt = roleTokens(role);
+    if (!rt.size) continue;
+    let hit = 0; for (const t of rt) if (tt.has(t)) hit++;
+    const core = [...rt][rt.size - 1]; // last token is usually the role noun (engineer, manager, analyst)
+    const fit = hit / rt.size * (tt.has(core) ? 1 : 0.6);
+    best = Math.max(best, fit);
+  }
+  return best;
+}
+
+function semanticComponent(cos: number | null, provider: string | null, profile: ScoreProfileInput, job: ScoreJobInput) {
+  const rf = roleFit(profile.targetRoles, job.title);
+  const evidence: string[] = [];
+  let semantic: number | null = null;
+  if (cos != null) {
+    const cal = SEMANTIC_CALIBRATION[provider ?? "local"] ?? SEMANTIC_CALIBRATION.local;
+    semantic = clamp(((cos - cal.lo) / (cal.hi - cal.lo)) * 100);
+    evidence.push(`Semantic similarity between your profile and the posting: ${cos.toFixed(2)} (${provider ?? "local"} embeddings).`);
+  }
+  if (rf != null) evidence.push(rf >= 0.99 ? `The title matches one of your target roles.` : rf > 0 ? `The title partly matches your target roles (${Math.round(rf * 100)}%).` : `The title does not match any of your target roles.`);
+  if (semantic == null && rf == null) return { score: 0, status: "na" as ComponentStatus, evidence: ["No embedding available yet."] };
+  const score = semantic != null && rf != null ? 0.5 * semantic + 0.5 * rf * 100 : semantic != null ? semantic : rf! * 100;
+  return { score: r(score), status: "scored" as ComponentStatus, evidence };
 }
 
 function seniorityComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
@@ -169,7 +200,7 @@ export function scoreMatch(profile: ScoreProfileInput, job: ScoreJobInput, seman
   const sk = skillsComponent(profile, job);
   const parts: Array<[ComponentKey, { score: number; status: ComponentStatus; evidence: string[] }]> = [
     ["skills", sk],
-    ["semantic", semanticComponent(semanticCosine, embeddingProvider)],
+    ["semantic", semanticComponent(semanticCosine, embeddingProvider, profile, job)],
     ["seniority", seniorityComponent(profile, job)],
     ["years", yearsComponent(profile, job)],
     ["industry", industryComponent(profile, job)],

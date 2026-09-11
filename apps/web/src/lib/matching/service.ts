@@ -7,7 +7,7 @@ export type JobWithCompany = Job & { company: Company };
 
 export function toScoreJob(job: JobWithCompany): ScoreJobInput {
   return {
-    requiredSkills: job.requiredSkills, preferredSkills: job.preferredSkills, seniority: job.seniority,
+    title: job.title, requiredSkills: job.requiredSkills, preferredSkills: job.preferredSkills, seniority: job.seniority,
     yearsMin: job.yearsMin, yearsMax: job.yearsMax, industry: job.industry ?? job.company.industry ?? null,
     isRemote: job.isRemote, location: job.location, city: job.city, region: job.region, country: job.country,
   };

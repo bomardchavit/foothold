@@ -47,9 +47,19 @@ test("the copilot answers 'why do I match' with citations", async ({ page }) => 
 
 test("liking, hiding, tabs and saved filters work on the jobs workspace", async ({ page }) => {
   await signIn(page, "demo@foothold.local");
+  // self-heal state left by earlier runs: restore a hidden target job, unlike a liked one
+  await page.goto("/jobs?q=Solutions&hidden=1");
+  while ((await page.getByTestId("match-card").count()) > 0) { await page.getByTestId("match-card").first().getByTestId("hide-job").click(); await page.waitForTimeout(400); }
   await page.goto("/jobs?q=Solutions");
-  const first = page.getByTestId("match-card").first();
+  // pick a card that is not already in the tracker (earlier runs mark the top job as applied)
+  const cards = page.getByTestId("match-card");
+  let first = cards.first();
+  for (let i = 0; i < (await cards.count()); i++) {
+    const c = cards.nth(i);
+    if ((await c.locator("text=/^(Applied|Screening|Interview|Offer|Rejected)$/").count()) === 0) { first = c; break; }
+  }
   const jobId = await first.getAttribute("data-job-id");
+  if ((await first.getByTestId("like-job").getAttribute("aria-pressed")) === "true") { await first.getByTestId("like-job").click(); await expect(first.getByTestId("like-job")).toHaveAttribute("aria-pressed", "false"); }
   await first.getByTestId("like-job").click();
   await expect(first.getByTestId("like-job")).toHaveAttribute("aria-pressed", "true");
   await page.getByTestId("tab-liked").click();

@@ -187,7 +187,7 @@ export function profileEmbeddingText(p: FullProfile): string {
 }
 
 export function toScoreProfile(p: CandidateProfile & { skills: { name: string }[] }): ScoreProfileInput {
-  return { skills: p.skills.map((s) => s.name), seniority: p.seniority, yearsExperience: p.yearsExperience, industries: p.industries, locations: p.locations, remotePref: p.remotePref };
+  return { skills: p.skills.map((s) => s.name), seniority: p.seniority, yearsExperience: p.yearsExperience, industries: p.industries, locations: p.locations, remotePref: p.remotePref, targetRoles: p.targetRoles };
 }
 
 export function profileCompleteness(p: FullProfile): { score: number; missing: string[] } {
