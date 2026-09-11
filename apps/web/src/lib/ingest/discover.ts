@@ -109,8 +109,13 @@ export async function discoverSources(input: string): Promise<{ name: string; fo
     ats.push(...(await probeAts(slugs, name)));
   }
   if (!ats.length) {
-    const careersPage = pages.slice(1).find((p) => new URL(p).hostname === home.hostname && !blocked.includes(p));
-    if (careersPage) ats.push({ kind: "CAREERS", slug: careersPage, name, url: careersPage, evidence: "no known ATS found; generic careers crawl" });
+    // Only a page that says it is about jobs. Falling back to "any internal link we happened to follow" registered
+    // marketing pages as job sources (an impact-investing page for BlackRock, a culture page for Boston Scientific).
+    const careersPage = pages.slice(1).find((p) => {
+      const u = new URL(p);
+      return u.hostname === home.hostname && !blocked.includes(p) && /(^|\/)(careers?|jobs|join-us|work-with-us|opportunities)(\/|$|\?)/i.test(u.pathname);
+    });
+    if (careersPage) ats.push({ kind: "CAREERS", slug: careersPage, name, url: careersPage, evidence: "no known ATS found; careers page crawl" });
   }
   return { name, found: ats, visited, blocked };
 }

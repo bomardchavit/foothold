@@ -315,6 +315,13 @@ export async function bootstrapUsCompanies(opts: { limit?: number; all?: boolean
         registered++;
         const r = await withTimeout(ingestSourceJob({ sourceId: row.id }), BOOTSTRAP_TIMEOUT_MS, `${c.name} ingest`);
         jobs += r?.inserted ?? 0;
+        // A crawl that finds almost nothing is a page that is not really a job board: register it, then switch it off
+        // rather than polling a marketing page forever.
+        if (src.kind === "CAREERS" && (r?.fetched ?? 0) < 3) {
+          await prisma.jobSource.update({ where: { id: row.id }, data: { enabled: false, lastStatus: `disabled: only ${r?.fetched ?? 0} postings found` } });
+          log(`${c.name} (careers/${src.slug}): only ${r?.fetched ?? 0} postings; disabled`);
+          continue;
+        }
         const unchanged = r && "notModified" in r && r.notModified;
         log(`${c.name} (${src.kind.toLowerCase()}/${src.slug}): ${unchanged ? "no change since the last poll" : `${r?.fetched ?? 0} listed, ${r?.inserted ?? 0} new${r?.updated ? `, ${r.updated} updated` : ""}${r?.skipped ? `, ${r.skipped} outside scope` : ""}`}`);
       }
