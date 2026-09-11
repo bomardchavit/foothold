@@ -50,7 +50,7 @@ export async function markCrossCompanyDuplicates(jobIds: string[]) {
   for (const job of jobs) {
     if (!job.fingerprint) continue;
     const peers = await prisma.job.findMany({ where: { normalizedTitle: job.normalizedTitle, firstSeenAt: { gt: since } }, select: { id: true, fingerprint: true, companyId: true, qualityFlags: true } });
-    const near = peers.filter((p) => p.fingerprint && hammingDistance(p.fingerprint, job.fingerprint!) <= 6);
+    const near = peers.filter((p) => p.fingerprint && hammingDistance(p.fingerprint, job.fingerprint!) <= 3);
     const companies = new Set(near.map((p) => p.companyId));
     if (companies.size >= 3) {
       const ids = near.map((p) => p.id);

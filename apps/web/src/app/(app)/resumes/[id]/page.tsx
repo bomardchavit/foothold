@@ -16,7 +16,7 @@ export default async function ResumeDocPage({ params }: { params: Promise<{ id: 
   if (!doc) notFound();
   const apps = doc.jobId ? await prisma.application.findUnique({ where: { userId_jobId: { userId: user.id, jobId: doc.jobId } }, select: { id: true, status: true, resumeDocumentId: true } }) : null;
   return (
-    <div>
+    <div className="px-4 pt-6 sm:px-6">
       <div className="mb-4 text-sm text-muted-foreground"><Link href="/resumes" className="underline">Résumés</Link> / {doc.title}</div>
       <ResumeWorkbench
         doc={{ id: doc.id, kind: doc.kind, title: doc.title, jobId: doc.jobId, jobTitle: doc.job?.title ?? null, company: doc.job?.company.name ?? null, createdAt: doc.createdAt.toISOString() }}

@@ -15,7 +15,7 @@ export const greenhouse: SourceAdapter = {
     return data.jobs.map((j): NormalizedJob => ({
       externalId: String(j.id), title: j.title, company, description: stripHtml(decodeEntities(j.content ?? "")),
       location: j.location?.name ?? null, isRemote: /remote/i.test(j.location?.name ?? ""), applyUrl: j.absolute_url,
-      postedAt: j.first_published ?? j.updated_at ?? null, raw: { departments: j.departments, offices: j.offices, updated_at: j.updated_at },
+      postedAt: j.updated_at ?? j.first_published ?? null, raw: { departments: j.departments, offices: j.offices, first_published: j.first_published },
     }));
   },
 };

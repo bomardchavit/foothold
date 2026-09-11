@@ -114,7 +114,14 @@ export const ProfileEditSchema = z.object({
 export type ProfileEdit = z.infer<typeof ProfileEditSchema>;
 
 // ---- Jobs
+export const EMPLOYMENT_TYPE_VALUES = ["FULL_TIME", "PART_TIME", "CONTRACT", "INTERNSHIP", "TEMPORARY", "UNKNOWN"] as const;
+export const WORKPLACE_TYPE_VALUES = ["REMOTE", "HYBRID", "ONSITE", "UNKNOWN"] as const;
+export const EMPLOYMENT_TYPE_LABELS: Record<(typeof EMPLOYMENT_TYPE_VALUES)[number], string> = { FULL_TIME: "Full-time", PART_TIME: "Part-time", CONTRACT: "Contract", INTERNSHIP: "Internship", TEMPORARY: "Temporary", UNKNOWN: "Not specified" };
+export const WORKPLACE_TYPE_LABELS: Record<(typeof WORKPLACE_TYPE_VALUES)[number], string> = { REMOTE: "Remote", HYBRID: "Hybrid", ONSITE: "Onsite", UNKNOWN: "Not specified" };
+
 export const JobParsedSchema = z.object({
+  employmentType: z.enum(EMPLOYMENT_TYPE_VALUES).default("UNKNOWN"),
+  workplaceType: z.enum(WORKPLACE_TYPE_VALUES).default("UNKNOWN"),
   requiredSkills: z.array(z.string()).default([]),
   preferredSkills: z.array(z.string()).default([]),
   yearsMin: z.number().int().min(0).max(40).nullable().default(null),
@@ -139,6 +146,8 @@ export const NormalizedJobSchema = z.object({
   description: z.string(),
   location: z.string().nullable().optional(),
   isRemote: z.boolean().optional(),
+  workplaceType: z.enum(WORKPLACE_TYPE_VALUES).optional(),
+  employmentType: z.enum(EMPLOYMENT_TYPE_VALUES).optional(),
   applyUrl: z.string(),
   postedAt: z.string().nullable().optional(),
   salaryMin: z.number().nullable().optional(),

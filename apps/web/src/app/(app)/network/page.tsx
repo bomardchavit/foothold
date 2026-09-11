@@ -15,8 +15,8 @@ export default async function NetworkPage({ searchParams }: { searchParams: Prom
   ]);
   const rows: ContactRow[] = contacts.map((c) => ({ id: c.id, firstName: c.firstName, lastName: c.lastName, email: c.email, currentCompany: c.currentCompany, title: c.title, schools: c.schools, pastCompanies: c.pastCompanies, linkedinUrl: c.linkedinUrl, notes: c.notes, source: c.source }));
   return (
-    <NetworkClient contacts={rows} jobs={jobs.map((j) => ({ id: j.id, label: `${j.title} · ${j.company.name}` }))}
+    <div className="px-4 pt-6 sm:px-6"><NetworkClient contacts={rows} jobs={jobs.map((j) => ({ id: j.id, label: `${j.title} · ${j.company.name}` }))}
       drafts={drafts.map((d) => ({ id: d.id, kind: d.kind, subject: d.subject, body: d.body, contact: `${d.contact.firstName} ${d.contact.lastName}`, job: d.job?.title ?? null, sentAt: d.markedSentAt?.toISOString() ?? null }))}
-      initialContactId={sp.contact ?? null} initialJobId={sp.jobId ?? null} initialCompany={sp.company ?? ""} />
+      initialContactId={sp.contact ?? null} initialJobId={sp.jobId ?? null} initialCompany={sp.company ?? ""} /></div>
   );
 }

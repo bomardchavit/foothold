@@ -34,7 +34,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
   const salary = salaryLabel(job.salaryMin, job.salaryMax, job.salaryCurrency, job.salaryPeriod);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
+    <div className="grid gap-8 px-4 pt-6 sm:px-6 lg:grid-cols-[1fr_380px]">
       <JobPageClient job={{ id: job.id, title: job.title, company: job.company.name }} />
       <article className="min-w-0">
         <header>
@@ -75,7 +75,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
       <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
         <JobActions job={{ id: job.id, title: job.title, company: job.company.name, applyUrl: job.applyUrl }} application={application} />
         <InsidersPanel companyId={job.company.id} companyName={job.company.name} jobId={job.id} />
-        <Button asChild variant="ghost" className="w-full"><a href="/feed">Back to matches</a></Button>
+        <Button asChild variant="ghost" className="w-full"><a href="/jobs">Back to jobs</a></Button>
       </aside>
     </div>
   );

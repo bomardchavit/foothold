@@ -21,7 +21,9 @@
     "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w packages/shared && npm run typecheck -w apps/extension",
     "test": "npm run test -w apps/web && npm run test -w packages/shared",
     "e2e": "npm run e2e -w apps/web",
-    "build:extension": "npm run build -w apps/extension"
+    "build:extension": "npm run build -w apps/extension",
+    "scrape": "npm run ingest -w apps/web --",
+    "scrape:watch": "npm run ingest -w apps/web -- --watch 30"
   },
   "engines": {
     "node": ">=22"

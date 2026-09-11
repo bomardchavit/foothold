@@ -31,6 +31,8 @@ model User {
   pairingCodes    ExtensionPairingCode[]
   digestSends     DigestSend[]
   llmCalls        LlmCall[]
+  hiddenJobs      HiddenJob[]
+  savedFilters    SavedFilter[]
 }
 
 model Account {
@@ -146,6 +148,10 @@ enum JobSourceKind {
   USAJOBS
   SEED
   MANUAL
+  CAREERS
+  SMARTRECRUITERS
+  WORKABLE
+  WORKDAY
 }
 
 enum H1bSignal {
@@ -184,6 +190,22 @@ enum GroundingStatus {
 enum MessageRole {
   USER
   ASSISTANT
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+  UNKNOWN
+}
+
+enum WorkplaceType {
+  REMOTE
+  HYBRID
+  ONSITE
+  UNKNOWN
 }
 
 // ---------------------------------------------------------------- Profile
@@ -390,6 +412,8 @@ model Job {
   region            String?
   country           String?
   isRemote          Boolean                    @default(false)
+  workplaceType     WorkplaceType              @default(UNKNOWN)
+  employmentType    EmploymentType             @default(UNKNOWN)
   seniority         Seniority                  @default(UNKNOWN)
   requiredSkills    String[]                   @default([])
   preferredSkills   String[]                   @default([])
@@ -419,6 +443,7 @@ model Job {
   resumeDocuments   ResumeDocument[]
   conversations     CopilotConversation[]
   outreachDrafts    OutreachDraft[]
+  hiddenBy          HiddenJob[]
 
   @@unique([sourceId, externalId])
   @@index([postedAt])
@@ -628,4 +653,29 @@ model LlmCall {
   createdAt       DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ---------------------------------------------------------------- Jobs workspace
+model HiddenJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+}
+
+model SavedFilter {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  paramsJson Json
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
 }

@@ -8,6 +8,7 @@ const SYSTEM = `You extract structured hiring requirements from a job posting. B
 - preferredSkills: items marked nice-to-have, preferred, bonus, or plus.
 - yearsMin/yearsMax: years of experience requested, null if not stated.
 - seniority: one of INTERN, ENTRY, MID, SENIOR, STAFF, PRINCIPAL, MANAGER, DIRECTOR, EXECUTIVE, UNKNOWN.
+- workplaceType: REMOTE, HYBRID, ONSITE or UNKNOWN. employmentType: FULL_TIME, PART_TIME, CONTRACT, INTERNSHIP, TEMPORARY or UNKNOWN.
 - isRemote: true only if the role can be done fully remotely. Hybrid = false.
 - salary: numeric annual (or hourly with salaryPeriod="hour") range if stated, else null.
 - industry: the employer's industry in a few words, or null.`;
@@ -29,6 +30,8 @@ export async function parseJob(input: { title: string; description: string; loca
         preferredSkills: pref,
         yearsMin: out.yearsMin ?? heuristic.yearsMin, yearsMax: out.yearsMax ?? heuristic.yearsMax,
         seniority: out.seniority === "UNKNOWN" ? heuristic.seniority : out.seniority,
+        employmentType: out.employmentType === "UNKNOWN" ? heuristic.employmentType : out.employmentType,
+        workplaceType: out.workplaceType === "UNKNOWN" ? heuristic.workplaceType : out.workplaceType,
         salaryMin: out.salaryMin ?? heuristic.salaryMin, salaryMax: out.salaryMax ?? heuristic.salaryMax,
         salaryCurrency: out.salaryCurrency ?? heuristic.salaryCurrency, salaryPeriod: out.salaryPeriod ?? heuristic.salaryPeriod,
         industry: out.industry ?? heuristic.industry,

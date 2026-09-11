@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import type { JobSource } from "@prisma/client";
-import { normalizeCompanyName, normalizeText, parseLocation, normalizeIndustry, simhash, type NormalizedJob } from "@foothold/shared";
+import { normalizeCompanyName, normalizeText, parseLocation, normalizeIndustry, simhash, hammingDistance, type NormalizedJob } from "@foothold/shared";
 import { prisma } from "../db";
 import { parseJob } from "../llm/tasks/parseJob";
 import { computeQualityFlags } from "./quality";
 import { refreshCompanySignal } from "../h1b/signal";
 
 /** Bump when job parsing changes so the next ingest run re-parses unchanged postings. */
-export const PARSER_VERSION = "2";
+export const PARSER_VERSION = "5";
 
 export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob): Promise<{ id: string; inserted: boolean; changed: boolean }> {
   const description = nj.description.trim();
@@ -28,9 +28,20 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
     await prisma.job.update({ where: { id: existing.id }, data: { lastSeenAt: new Date() } });
     return { id: existing.id, inserted: false, changed: false };
   }
+  // Cross-source dedupe: the same posting reached through another source (careers page vs ATS board) is one job.
+  if (!existing) {
+    const fp = simhash(description);
+    const twin = await prisma.job.findFirst({ where: { companyId: company.id, normalizedTitle: normalizeText(nj.title), sourceId: { not: source.id } }, select: { id: true, fingerprint: true } });
+    if (twin?.fingerprint && hammingDistance(twin.fingerprint, fp) <= 3) {
+      await prisma.job.update({ where: { id: twin.id }, data: { lastSeenAt: new Date() } });
+      return { id: twin.id, inserted: false, changed: false };
+    }
+  }
   const { parsed } = await parseJob({ title: nj.title, description, location: nj.location });
   const loc = parseLocation(nj.location);
   const isRemote = Boolean(nj.isRemote) || parsed.isRemote || loc.isRemote;
+  const workplaceType = nj.workplaceType ?? (isRemote && parsed.workplaceType !== "HYBRID" ? "REMOTE" : parsed.workplaceType);
+  const employmentType = nj.employmentType ?? parsed.employmentType;
   const postedAt = nj.postedAt ? new Date(nj.postedAt) : existing?.postedAt ?? new Date();
   const industry = normalizeIndustry(parsed.industry) ?? company.industry ?? null;
   const salaryMin = nj.salaryMin ?? parsed.salaryMin ?? null;
@@ -39,7 +50,7 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
   const qualityFlags = computeQualityFlags({ description, postedAt, salaryMin, salaryMax, salaryPeriod, companyDomain: company.domain, sourceKind: source.kind });
   const data = {
     title: nj.title.trim(), normalizedTitle: normalizeText(nj.title), description, location: nj.location ?? null,
-    city: loc.city, region: loc.region, country: loc.country, isRemote, seniority: parsed.seniority,
+    city: loc.city, region: loc.region, country: loc.country, isRemote, workplaceType, employmentType, seniority: parsed.seniority,
     requiredSkills: parsed.requiredSkills, preferredSkills: parsed.preferredSkills, yearsMin: parsed.yearsMin, yearsMax: parsed.yearsMax,
     salaryMin, salaryMax, salaryCurrency: nj.salaryCurrency ?? parsed.salaryCurrency ?? (salaryMin ? "USD" : null), salaryPeriod,
     industry, postedAt, lastSeenAt: new Date(), applyUrl: nj.applyUrl, contentHash, fingerprint: simhash(description),

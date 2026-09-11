@@ -3,7 +3,7 @@ import { signIn } from "./helpers";
 
 test("tailor a résumé for a job, see the diff, export PDF and DOCX, track the application", async ({ page }) => {
   await signIn(page, "demo@foothold.local");
-  await page.goto("/feed");
+  await page.goto("/jobs");
   await page.getByTestId("match-title").first().click();
   await page.getByTestId("tailor-button").click();
   await page.waitForURL(/\/resumes\/[a-z0-9]+$/, { timeout: 120_000 });

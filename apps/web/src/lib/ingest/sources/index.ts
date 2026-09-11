@@ -6,12 +6,16 @@ import { ashby } from "./ashby";
 import { adzuna } from "./adzuna";
 import { usajobs } from "./usajobs";
 import { seed } from "./seed";
+import { careers } from "./careers";
+import { smartrecruiters } from "./smartrecruiters";
+import { workable } from "./workable";
+import { workday } from "./workday";
 
 export interface SourceRef { slug: string; name: string | null }
 export interface SourceAdapter { kind: JobSourceKind; label: string; needsKey: boolean; fetchJobs(source: SourceRef): Promise<NormalizedJob[]> }
 
 const manual: SourceAdapter = { kind: "MANUAL", label: "Added by hand / extension", needsKey: false, async fetchJobs() { return []; } };
-export const ADAPTERS: Record<JobSourceKind, SourceAdapter> = { GREENHOUSE: greenhouse, LEVER: lever, ASHBY: ashby, ADZUNA: adzuna, USAJOBS: usajobs, SEED: seed, MANUAL: manual };
+export const ADAPTERS: Record<JobSourceKind, SourceAdapter> = { GREENHOUSE: greenhouse, LEVER: lever, ASHBY: ashby, ADZUNA: adzuna, USAJOBS: usajobs, SEED: seed, MANUAL: manual, CAREERS: careers, SMARTRECRUITERS: smartrecruiters, WORKABLE: workable, WORKDAY: workday };
 
 export const USER_AGENT = "Foothold/0.1 (job-search assistant; public-API client)";
 export async function getJson<T>(url: string, headers: Record<string, string> = {}): Promise<T> {

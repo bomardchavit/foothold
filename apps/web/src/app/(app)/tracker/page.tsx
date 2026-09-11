@@ -19,7 +19,7 @@ export default async function TrackerPage() {
     notes: a.notes.map((n) => ({ id: n.id, body: n.body, at: n.createdAt.toISOString() })),
   }));
   return (
-    <div>
+    <div className="px-4 pt-6 sm:px-6">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Application tracker</h1><p className="mt-1 text-sm text-muted-foreground">Every status change is timestamped. Drag a card or use its menu to move it.</p></div>
         <p className="text-sm text-muted-foreground">{data.length} application{data.length === 1 ? "" : "s"}</p>

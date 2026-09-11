@@ -41,3 +41,31 @@ export function inferJobSeniority(title: string, yearsMin: number | null | undef
   }
   return seniorityFromYears(yearsMin);
 }
+
+export type EmploymentTypeKey = "FULL_TIME" | "PART_TIME" | "CONTRACT" | "INTERNSHIP" | "TEMPORARY" | "UNKNOWN";
+export type WorkplaceTypeKey = "REMOTE" | "HYBRID" | "ONSITE" | "UNKNOWN";
+
+export function detectEmploymentType(title: string, description: string): EmploymentTypeKey {
+  const t = title.toLowerCase();
+  const head = description.slice(0, 2500).toLowerCase();
+  if (/\b(intern|internship|co-op|coop)\b/.test(t) || /\b(internship|summer intern|intern program)\b/.test(head)) return "INTERNSHIP";
+  if (/\b(contract|contractor|freelance|1099|c2c|corp[- ]to[- ]corp)\b/.test(t) || /\b(contract (?:role|position|basis)|contractor|freelance)\b/.test(head)) return "CONTRACT";
+  if (/\b(part[- ]time)\b/.test(t) || /\bpart[- ]time\b/.test(head)) return "PART_TIME";
+  if (/\b(temporary|temp|seasonal)\b/.test(t) || /\b(temporary position|seasonal role)\b/.test(head)) return "TEMPORARY";
+  if (/\bfull[- ]time\b/.test(t + " " + head)) return "FULL_TIME";
+  return description.length > 200 ? "FULL_TIME" : "UNKNOWN"; // postings are full-time unless they say otherwise
+}
+
+export function detectWorkplaceType(title: string, location: string | null | undefined, description: string, sourceRemote?: boolean | null): WorkplaceTypeKey {
+  const loc = (location ?? "").toLowerCase();
+  const t = title.toLowerCase();
+  const head = description.slice(0, 2500).toLowerCase();
+  const all = `${t} ${loc} ${head}`;
+  if (/\bhybrid\b/.test(loc) || /\bhybrid\b/.test(t) || /\b(hybrid (?:role|schedule|work|position|model)|\d\s*days? (?:a|per) week (?:in|at) (?:the )?office|in[- ]office \d)/.test(head)) return "HYBRID";
+  if (sourceRemote || /\b(remote|work from anywhere|wfh)\b/.test(loc) || /\bremote\b/.test(t) || /\b(fully remote|remote[- ]first|100% remote|remote (?:role|position|work) )/.test(head)) {
+    if (/\b(not remote|no remote|remote is not|on-?site only|in[- ]office only)\b/.test(head)) return "ONSITE";
+    return "REMOTE";
+  }
+  if (/\b(on-?site|in[- ]office|in[- ]person)\b/.test(all)) return "ONSITE";
+  return location && location.trim() ? "ONSITE" : "UNKNOWN";
+}

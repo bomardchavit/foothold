@@ -44,6 +44,33 @@ No API keys are required to run every flow: without `ANTHROPIC_API_KEY` the app 
 | `JOBS_MODE` | no | `inline` (default: background work runs after the response) or `queue` (pg-boss; run `npm run worker`). |
 | `STORAGE_DIR`, `CRON_SECRET`, `APP_URL` | no | Upload storage dir, cron auth for `/api/cron/digest`, public URL used in emails and the extension. |
 
+## Jobs workspace
+
+`/jobs` is the main screen: left navigation, `JOBS › Recommended · Liked · Applied · External` tabs with counts, a filter chip bar (location, roles, level, job type, workplace, date posted, industry, years of experience, hidden jobs, all filters), sort, and job cards with a score panel (percent ring, Strong/Good/Fair match, H-1B and compensation signals, alumni inside). Hide (⊘) and like (♥) act instantly with undo; the right rail keeps saved filter combinations. Skeleton loading, an error boundary with retry, and per-tab empty states are built in; the layout collapses to a top bar + drawer below 1024px.
+
+## Scraper pipeline
+
+Everything comes from public APIs or robots.txt-compliant crawling, with one identified user agent (`FootholdBot`), one request at a time per host, Crawl-delay honoured, and backoff on 429/503. There is deliberately **no proxy or user-agent rotation and no anti-bot circumvention**: a site that blocks the bot is reported, not evaded.
+
+| Source | How | Slug |
+|---|---|---|
+| Greenhouse, Lever, Ashby | official public job-board JSON APIs | board token / site / board name |
+| SmartRecruiters, Workable | public posting APIs | company identifier / subdomain |
+| Workday | the JSON the career site itself uses, only where robots.txt allows `/wday/cxs/` | `tenant.wd5/SiteName` |
+| Any careers site | crawl job links + sitemap, read schema.org `JobPosting` JSON-LD, render with headless Chromium when the page is JS-only | careers page URL |
+| Adzuna, USAJobs | keyed APIs | search query |
+
+```bash
+npm run scrape -- discover stripe.com              # find the ATS a company uses, register it, ingest
+npm run scrape -- careers https://example.com/careers
+npm run scrape -- greenhouse:stripe                # one source by kind:slug
+npm run scrape                                     # every enabled source once
+npm run scrape:watch                               # every 30 minutes (or run `npm run worker` for the 6-hourly schedule)
+npm run scrape -- export                           # data/exports/jobs.json, normalized
+```
+
+Each posting is normalized (title, company, location, remote/hybrid/onsite, employment type, level, required/preferred skills, years, salary, posting date, apply URL, source), deduplicated by content hash, by near-duplicate fingerprint across sources, and across companies (agency reposts), quality-flagged (stale, scam patterns, missing employer domain), embedded, and scored for every onboarded profile. Headless rendering needs Chromium once: `npx playwright install chromium` in `apps/web`. Tune with `SCRAPER_MIN_DELAY_MS`, `SCRAPER_MAX_PAGES`, `SCRAPER_CONTACT`.
+
 ## Seeding and data
 
 - `npm run db:seed` loads `data/seed/jobs.json` (311 fictional postings across 40 fictional companies, including stale, scam-pattern and cross-agency duplicate examples), `data/seed/h1b_sample.csv` (a small illustrative slice shaped like the USCIS H-1B Employer Data Hub), 25 curated Greenhouse/Lever/Ashby boards (disabled until you enable them), and the demo user.
@@ -79,6 +106,13 @@ Six components, each 0–100, weighted skills 35 / profile relevance 20 / senior
 `apps/web` (Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, Prisma + pgvector, Auth.js, Anthropic SDK, pg-boss) · `apps/extension` (Manifest V3, Vite + CRXJS) · `packages/shared` (zod schemas, skill taxonomy, scoring, ATS field patterns shared with the extension) · `data/seed`.
 
 Background jobs (parse, embed, match, ingest, digest) run inline after the request by default; set `JOBS_MODE=queue` and run `npm run worker` for a separate process with scheduled ingestion (every 6 h) and digests (13:00 UTC).
+
+## Deployment
+
+- **Web**: any Node 22 host. `npm ci && npm run build -w apps/web && npm run start -w apps/web` with `DATABASE_URL` pointing at Postgres 17 + pgvector and `AUTH_URL`/`APP_URL` set to the public origin. A `Dockerfile` is included: `docker build -t foothold . && docker run -p 3000:3000 --env-file apps/web/.env foothold`.
+- **Worker**: run `npm run worker -w apps/web` as a second process with `JOBS_MODE=queue` on the web app; it owns ingestion every 6 h and digests at 13:00 UTC. Without a worker, background work runs inline after each request and `npm run scrape:watch` keeps jobs fresh.
+- **Migrations**: `npm run db:migrate` on deploy (Prisma `migrate deploy`).
+- **Digest cron** without a worker: `POST /api/cron/digest` with `Authorization: Bearer $CRON_SECRET`.
 
 ## Tests
 

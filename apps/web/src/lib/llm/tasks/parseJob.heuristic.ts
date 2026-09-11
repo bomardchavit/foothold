@@ -1,4 +1,4 @@
-import { extractSkills, skillCategory, inferJobSeniority, inferIndustry, canonicalizeSkill, type JobParsed } from "@foothold/shared";
+import { extractSkills, skillCategory, inferJobSeniority, inferIndustry, canonicalizeSkill, detectEmploymentType, detectWorkplaceType, type JobParsed } from "@foothold/shared";
 
 const REQUIRED_HDR = /^(?:(?:minimum|basic|required|core|key|essential)\s+)?(?:requirements?|qualifications?|what\s+(?:you(?:'ll| will)?\s+)?(?:need|bring)|what\s+we(?:'re| are)\s+looking\s+for|who\s+you\s+are|about\s+you|must[- ]haves?|you\s+(?:have|are|should|will\s+have)|skills(?:\s+(?:and|&)\s+(?:experience|qualifications))?|your\s+(?:experience|background|profile)|required\s+skills|the\s+ideal\s+candidate|we(?:'d| would)\s+love\s+(?:to\s+see|it\s+if))\b/i;
 const PREFERRED_HDR = /^(?:(?:preferred|desired|additional)\s+(?:qualifications?|skills|experience)|nice[- ]to[- ]haves?|bonus(?:\s+points)?|(?:a\s+)?plus(?:es)?|it(?:'s| is)\s+a\s+plus|extra\s+credit|preferred|ideally|great\s+if\s+you|even\s+better\s+if|good\s+to\s+have|would\s+be\s+(?:a\s+)?(?:plus|bonus)|not\s+required\s+but)/i;
@@ -82,12 +82,15 @@ export function parseJobHeuristic(input: { title: string; description: string; l
   const years = extractYears(required.length > 40 ? required : input.description);
   const y2 = years.yearsMin == null ? extractYears(input.description) : years;
   const salary = extractSalary(input.description);
+  const workplaceType = detectWorkplaceType(input.title, input.location, input.description);
   return {
+    employmentType: detectEmploymentType(input.title, input.description),
+    workplaceType,
     requiredSkills: requiredSkills.slice(0, 25).map(canonicalizeSkill),
     preferredSkills: preferredSkills.slice(0, 15).map(canonicalizeSkill),
     yearsMin: y2.yearsMin, yearsMax: y2.yearsMax,
     seniority: inferJobSeniority(input.title, y2.yearsMin, input.description),
-    isRemote: detectRemote(input.title, input.location, input.description),
+    isRemote: workplaceType === "REMOTE" || detectRemote(input.title, input.location, input.description),
     ...salary,
     industry: inferIndustry(input.description),
   };

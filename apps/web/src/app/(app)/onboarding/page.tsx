@@ -22,7 +22,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   if (step === "done" && !profile?.onboardingCompletedAt) step = "preferences";
   const idx = STEPS.indexOf(step);
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl px-4 pt-6 sm:px-6">
       <ol className="mb-8 flex flex-wrap gap-x-6 gap-y-2 text-sm" aria-label="Progress">
         {[["upload", "Upload résumé"], ["review", "Review profile"], ["preferences", "Preferences"], ["done", "Matches"]].map(([k, label], i) => (
           <li key={k} className={cn("flex items-center gap-2", i === idx ? "font-medium text-foreground" : i < idx ? "text-primary" : "text-muted-foreground")}>
@@ -56,7 +56,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
           <h1 className="text-3xl">Your profile is ready</h1>
           <p className="mt-2 text-muted-foreground">We are scoring every open role against it. Your first matches should be waiting.</p>
           <div className="mt-6 flex gap-3">
-            <Button asChild size="lg"><Link href="/feed" data-testid="go-to-feed">See my matches</Link></Button>
+            <Button asChild size="lg"><Link href="/jobs" data-testid="go-to-feed">See my matches</Link></Button>
             <Button asChild variant="outline" size="lg"><Link href="/settings/profile">Edit profile</Link></Button>
           </div>
         </section>

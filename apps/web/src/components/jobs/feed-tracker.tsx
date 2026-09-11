@@ -5,9 +5,9 @@ import { useCopilot } from "@/components/copilot/copilot-context";
 
 /** Clears the copilot job context on the feed and polls while matches are still being computed. */
 export function FeedTracker({ waiting = false }: { waiting?: boolean }) {
-  const c = useCopilot();
+  const { setJob } = useCopilot();
   const router = useRouter();
-  useEffect(() => { c.setJob(null); }, [c]);
+  useEffect(() => { setJob(null); }, [setJob]);
   useEffect(() => {
     if (!waiting) return;
     const t = setInterval(() => router.refresh(), 2500);

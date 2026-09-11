@@ -16,7 +16,7 @@ export default async function InsightsPage() {
   const maxDist = Math.max(1, ...dist.map((d) => d.count));
   const keys = ["skills", "semantic", "seniority", "years", "industry", "location"] as const;
   return (
-    <div className="mx-auto max-w-5xl space-y-10">
+    <div className="mx-auto max-w-5xl space-y-10 px-4 pt-6 sm:px-6">
       <div><h1 className="text-3xl">Insights</h1><p className="mt-1 text-muted-foreground">What the market for your target roles asks for, and where you stand.</p></div>
       <section>
         <h2 className="text-xl">Skills you are missing most often</h2>

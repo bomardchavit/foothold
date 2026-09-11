@@ -8,7 +8,7 @@ export async function signIn(page: Page, email: string) {
   await page.goto("/sign-in");
   await page.getByTestId("dev-email").fill(email);
   await page.getByTestId("dev-login").click();
-  await page.waitForURL(/\/(feed|onboarding)/, { timeout: 30_000 });
+  await page.waitForURL(/\/(feed|jobs|onboarding)/, { timeout: 30_000 });
 }
 
 export async function expectOnFeed(page: Page) {

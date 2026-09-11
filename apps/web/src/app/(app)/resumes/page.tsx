@@ -12,7 +12,7 @@ export default async function ResumesPage() {
   const { user } = await requireOnboarded();
   const docs = await prisma.resumeDocument.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, include: { job: { include: { company: true } } } });
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl px-4 pt-6 sm:px-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div><h1 className="text-3xl">Résumés</h1><p className="mt-1 text-muted-foreground">A base résumé built from your profile, plus one tailored version per role. Every change is shown; unverified additions are labeled.</p></div>
         <CreateBaseButton />
