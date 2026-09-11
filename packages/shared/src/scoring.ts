@@ -196,7 +196,8 @@ function seniorityComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
     };
   }
   const d = Math.abs(a - b);
-  const score = d <= 0.5 ? 100 : d <= 1.5 ? 70 : d <= 2.5 ? 35 : 0;
+  const below = b < a; // a junior posting for a senior candidate is a worse fit than a stretch role
+  const score = d <= 0.5 ? 100 : d <= 1.5 ? (below ? 40 : 70) : d <= 2.5 ? (below ? 15 : 35) : 0;
   const rel = b > a ? "above" : b < a ? "below" : "at";
   return { score, status: "scored" as ComponentStatus, evidence: [`Posting is ${SENIORITY_LABELS[job.seniority]}, ${rel} your target (${SENIORITY_LABELS[profile.seniority]}).`] };
 }
@@ -210,7 +211,12 @@ function yearsComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
   let ev: string;
   if (y < min) { score = clamp(100 - 25 * (min - y)); ev = `Asks for ${min}+ years; you have ${y.toFixed(1)} (${(min - y).toFixed(1)} short).`; }
   else if (y <= max) { score = 100; ev = `Asks for ${min}${job.yearsMax != null ? `–${max}` : "+"} years; you have ${y.toFixed(1)}.`; }
-  else { const over = y - max; score = over > 5 ? 70 : 100; ev = `Asks for ${min}${job.yearsMax != null ? `–${max}` : "+"} years; you have ${y.toFixed(1)}${over > 5 ? " (may read as overqualified)" : ""}.`; }
+  else {
+    const over = y - max;
+    const explicitMax = job.yearsMax != null;
+    score = over > 5 ? (explicitMax ? 60 : 70) : over > 2 && explicitMax ? 80 : 100;
+    ev = `Asks for ${min}${explicitMax ? `–${max}` : "+"} years; you have ${y.toFixed(1)}${score < 100 ? " (more than the posting targets)" : ""}.`;
+  }
   return { score: r(score), status: "scored" as ComponentStatus, evidence: [ev] };
 }
 

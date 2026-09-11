@@ -1,5 +1,7 @@
 import type { Job, Company, CandidateProfile } from "@prisma/client";
 import { scoreMatch, industryForDomain, stripEmployerSkills, type ScoreJobInput, type MatchBreakdown, type ScoreProfileInput } from "@foothold/shared";
+import { Prisma } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { prisma } from "../db";
 import { toScoreProfile } from "../profile/service";
 
@@ -31,18 +33,21 @@ export function computeBreakdown(profile: CandidateProfile & { skills: { name: s
   return scoreMatch(toScoreProfile(profile), toScoreJob(job), cosine, profile.embeddingProvider);
 }
 
+/** One multi-row INSERT … ON CONFLICT per chunk: a profile save touches every open job, so per-row upserts would mean thousands of round trips. */
 export async function upsertMatches(profile: CandidateProfile, rows: Array<{ jobId: string; breakdown: MatchBreakdown }>) {
-  const chunks: typeof rows[] = [];
-  for (let i = 0; i < rows.length; i += 50) chunks.push(rows.slice(i, i + 50));
-  for (const chunk of chunks) {
-    await prisma.$transaction(chunk.map(({ jobId, breakdown }) => {
+  const now = new Date();
+  for (let i = 0; i < rows.length; i += 200) {
+    const chunk = rows.slice(i, i + 200);
+    const values = chunk.map(({ jobId, breakdown }) => {
       const c = Object.fromEntries(breakdown.components.map((x) => [x.key, x.score]));
-      const data = {
-        total: breakdown.total, skills: c.skills ?? 0, semantic: c.semantic ?? 0, seniority: c.seniority ?? 0, years: c.years ?? 0, industry: c.industry ?? 0, location: c.location ?? 0,
-        breakdownJson: breakdown as object, profileVersion: profile.version, computedAt: new Date(),
-      };
-      return prisma.matchScore.upsert({ where: { profileId_jobId: { profileId: profile.id, jobId } }, create: { profileId: profile.id, jobId, ...data }, update: data });
-    }));
+      return Prisma.sql`(${randomUUID()}, ${profile.id}, ${jobId}, ${breakdown.total}, ${c.skills ?? 0}, ${c.semantic ?? 0}, ${c.seniority ?? 0}, ${c.years ?? 0}, ${c.industry ?? 0}, ${c.location ?? 0}, ${JSON.stringify(breakdown)}::jsonb, ${profile.version}, ${now})`;
+    });
+    await prisma.$executeRaw(Prisma.sql`
+      INSERT INTO "MatchScore" ("id", "profileId", "jobId", "total", "skills", "semantic", "seniority", "years", "industry", "location", "breakdownJson", "profileVersion", "computedAt")
+      VALUES ${Prisma.join(values)}
+      ON CONFLICT ("profileId", "jobId") DO UPDATE SET
+        "total" = EXCLUDED."total", "skills" = EXCLUDED."skills", "semantic" = EXCLUDED."semantic", "seniority" = EXCLUDED."seniority", "years" = EXCLUDED."years",
+        "industry" = EXCLUDED."industry", "location" = EXCLUDED."location", "breakdownJson" = EXCLUDED."breakdownJson", "profileVersion" = EXCLUDED."profileVersion", "computedAt" = EXCLUDED."computedAt"`);
   }
 }
 

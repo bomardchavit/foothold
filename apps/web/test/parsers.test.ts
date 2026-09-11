@@ -82,3 +82,61 @@ describe("cleanTitle", () => {
     expect(cleanTitle("Product Manager, Connect")).toBe("Product Manager, Connect");
   });
 });
+
+describe("round-2 parser fixes", () => {
+  it("does not mine the employer's own intro paragraph for preferred skills, and never lists the employer as a skill", async () => {
+    const { parseJobHeuristic } = await import("@/lib/llm/tasks/parseJob.heuristic");
+    const description = [
+      "Anduril is committed to bringing cutting-edge autonomy, AI, computer vision, sensor fusion and networking to the mission.",
+      "About the role",
+      "You will build logistics tooling for our program managers using Datadog dashboards.",
+      "Requirements",
+      "- 5+ years managing supply chains",
+      "- Experience with SQL",
+    ].join("\n");
+    const p = parseJobHeuristic({ title: "Logistics Program Manager", description, company: "Anduril" });
+    expect(p.preferredSkills).not.toContain("Computer Vision");
+    expect(p.requiredSkills).not.toContain("Anduril");
+    const d = parseJobHeuristic({ title: "Software Engineer", description: "Requirements\n- Experience with Datadog and Python", company: "Datadog" });
+    expect(d.requiredSkills).toContain("Python");
+    expect(d.requiredSkills).not.toContain("Datadog");
+  });
+  it("keeps 'Assembly' for the language and 'Computer Science Fundamentals' for the phrase, not for assembly lines or a degree line", async () => {
+    const { extractSkills } = await import("@foothold/shared");
+    expect(extractSkills("raw material to internal assembly lines; PCBA fabrication & assembly")).not.toContain("Assembly");
+    expect(extractSkills("firmware in C, Rust, Assembly")).toContain("Assembly");
+    expect(extractSkills("x86 assembly and inline assembly")).toContain("Assembly");
+    expect(extractSkills("BS in Computer Science or equivalent")).not.toContain("Computer Science Fundamentals");
+    expect(extractSkills("strong CS fundamentals and data structures and algorithms")).toContain("Computer Science Fundamentals");
+    expect(extractSkills("troubleshooting printers")).not.toContain("Incident Response");
+  });
+  it("reads monthly salary ranges as monthly", async () => {
+    const { extractSalary } = await import("@/lib/llm/tasks/parseJob.heuristic");
+    const s = extractSalary("Monthly Salary Range $21,691 — $24,604 USD for this short-term role.");
+    expect(s).toMatchObject({ salaryMin: 21691, salaryMax: 24604, salaryPeriod: "month" });
+    expect(extractSalary("Annual base salary range: $150,000 - $190,000 USD").salaryPeriod).toBe("year");
+  });
+  it("treats the Coinbase generative-AI bullet as boilerplate", async () => {
+    const { parseJobHeuristic } = await import("@/lib/llm/tasks/parseJob.heuristic");
+    const p = parseJobHeuristic({ title: "Staff Software Engineer, Exchange", description: "What you'll be doing\n- Build matching engines in Go\n- Utilizes generative AI responsibly, maintaining human oversight\nRequirements\n- 8+ years with Go", company: "Coinbase" });
+    expect(p.requiredSkills).not.toContain("LLMs");
+    expect(p.preferredSkills).not.toContain("LLMs");
+  });
+  it("spam patterns need scam phrasing, not product mentions", async () => {
+    const { computeQualityFlags, QUALITY_FLAGS } = await import("@/lib/ingest/quality");
+    const base = { postedAt: new Date(), lastSeenAt: new Date(), salaryMin: 200000, salaryMax: 300000, salaryPeriod: "year", companyDomain: "vercel.com", sourceKind: "GREENHOUSE" };
+    const filler = " You will work with a senior team on production systems, own services end to end, and ship weekly. ".repeat(3);
+    expect(computeQualityFlags({ ...base, description: "eve integrates with Slack, WhatsApp and Telegram so agents can reach customers." + filler })).not.toContain(QUALITY_FLAGS.SPAM_PATTERN);
+    expect(computeQualityFlags({ ...base, description: "We handle wire payments and the Wire protocol; a merchant processing fee applies." + filler })).not.toContain(QUALITY_FLAGS.SPAM_PATTERN);
+    expect(computeQualityFlags({ ...base, description: "No interview. Contact us on WhatsApp +1 415 555 0199 to start today." + filler })).toContain(QUALITY_FLAGS.SPAM_PATTERN);
+    expect(computeQualityFlags({ ...base, description: "A small training fee is required before you start." + filler })).toContain(QUALITY_FLAGS.SPAM_PATTERN);
+  });
+  it("location edge cases from live boards", async () => {
+    const { parseLocation } = await import("@foothold/shared");
+    expect(parseLocation("Remote-Friendly, United States")).toMatchObject({ city: null, country: "US", isRemote: true });
+    expect(parseLocation("Remote - US: Select locations")).toMatchObject({ city: null, country: "US" });
+    expect(parseLocation("New York City, NY")).toMatchObject({ city: "New York", region: "NY", country: "US" });
+    expect(parseLocation("San Francisco Bay Area")).toMatchObject({ city: "San Francisco", region: "CA", country: "US" });
+    expect(parseLocation("Remote - Washington D.C.")).toMatchObject({ city: "Washington", region: "DC", country: "US" });
+  });
+});

@@ -65,6 +65,11 @@ async function main() {
       console.log("resolved", await resolveMissingLogos(arg ? Number(arg) : 200, { retry }), "logos"); return;
     }
     if (cmd === "prune") { const { pruneOutOfScope } = await import("../src/lib/ingest/run"); console.log("retired", await pruneOutOfScope(), "out-of-scope jobs"); return; }
+    if (cmd === "reparse") {
+      const { reparseJobs } = await import("../src/lib/ingest/reparse");
+      const r = await reparseJobs({ onProgress: (n, c) => { if (n % 1000 === 0) console.log(`[reparse] ${n} scanned, ${c} changed`); } });
+      console.log(`[reparse] done: ${r.scanned} scanned, ${r.changed} changed (changed rows re-embedded and re-scored)`); return;
+    }
     if (cmd === "industries") { const { syncKnownIndustries } = await import("../src/lib/ingest/run"); console.log("fixed", await syncKnownIndustries(), "company industries"); return; }
     if (cmd === "dedupe") { const { mergeDuplicatePostings } = await import("../src/lib/ingest/run"); console.log("merged", await mergeDuplicatePostings(), "duplicate rows"); return; }
     if (cmd === "careers") { if (!arg) throw new Error("usage: careers <careers-url>"); await runKindSlug("CAREERS", arg); return; }

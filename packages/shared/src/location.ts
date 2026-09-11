@@ -18,20 +18,20 @@ const COUNTRIES: Record<string, string> = {
   denmark: "DK", norway: "NO", finland: "FI", belgium: "BE", austria: "AT", "czech republic": "CZ", czechia: "CZ", hungary: "HU", greece: "GR",
   turkey: "TR", cyprus: "CY", malaysia: "MY", egypt: "EG", nigeria: "NG", kenya: "KE", "south africa": "ZA", pakistan: "PK", bangladesh: "BD",
   "sri lanka": "LK", ukraine: "UA", estonia: "EE", latvia: "LV", lithuania: "LT", serbia: "RS", croatia: "HR", bulgaria: "BG", slovakia: "SK",
-  slovenia: "SI", "costa rica": "CR", uruguay: "UY", "puerto rico": "PR", qatar: "QA", "new york city": "US",
+  slovenia: "SI", "costa rica": "CR", uruguay: "UY", "puerto rico": "PR", qatar: "QA",
 };
 /** Country-code prefixes used by ATS boards: "US-Chicago", "CA-Toronto", "IN-Bengaluru". */
 const COUNTRY_PREFIX: Record<string, string> = { US: "US", USA: "US", CA: "CA", IN: "IN", UK: "GB", GB: "GB", DE: "DE", FR: "FR", AU: "AU", SG: "SG", MX: "MX", BR: "BR", JP: "JP", IE: "IE", NL: "NL", ES: "ES", PT: "PT" };
 
 const CITY_HINTS: Record<string, [string, string]> = {
-  "san francisco": ["CA", "US"], sf: ["CA", "US"], "sf bay area": ["CA", "US"], "bay area": ["CA", "US"], "silicon valley": ["CA", "US"], "palo alto": ["CA", "US"],
+  "san francisco": ["CA", "US"], sf: ["CA", "US"], "sf bay area": ["CA", "US"], "bay area": ["CA", "US"], "san francisco bay area": ["CA", "US"], "silicon valley": ["CA", "US"], "palo alto": ["CA", "US"],
   "mountain view": ["CA", "US"], "menlo park": ["CA", "US"], "san jose": ["CA", "US"], sunnyvale: ["CA", "US"], oakland: ["CA", "US"], berkeley: ["CA", "US"],
   "south san francisco": ["CA", "US"], "redwood city": ["CA", "US"], "san mateo": ["CA", "US"], "santa clara": ["CA", "US"], cupertino: ["CA", "US"],
   "los angeles": ["CA", "US"], "san diego": ["CA", "US"], "santa monica": ["CA", "US"], irvine: ["CA", "US"], sacramento: ["CA", "US"],
   "new york": ["NY", "US"], nyc: ["NY", "US"], "new york city": ["NY", "US"], brooklyn: ["NY", "US"], manhattan: ["NY", "US"],
   seattle: ["WA", "US"], sea: ["WA", "US"], bellevue: ["WA", "US"], redmond: ["WA", "US"], austin: ["TX", "US"], dallas: ["TX", "US"], houston: ["TX", "US"],
   boston: ["MA", "US"], cambridge: ["MA", "US"], chicago: ["IL", "US"], chi: ["IL", "US"], champaign: ["IL", "US"], denver: ["CO", "US"], boulder: ["CO", "US"], atlanta: ["GA", "US"], atl: ["GA", "US"],
-  miami: ["FL", "US"], "washington, dc": ["DC", "US"], "washington dc": ["DC", "US"], "washington d.c.": ["DC", "US"], arlington: ["VA", "US"],
+  miami: ["FL", "US"], "washington, dc": ["DC", "US"], "washington dc": ["DC", "US"], "washington d.c.": ["DC", "US"], "washington d.c": ["DC", "US"], arlington: ["VA", "US"],
   philadelphia: ["PA", "US"], pittsburgh: ["PA", "US"], phoenix: ["AZ", "US"], portland: ["OR", "US"], "salt lake city": ["UT", "US"],
   minneapolis: ["MN", "US"], detroit: ["MI", "US"], "st. louis": ["MO", "US"], "st louis": ["MO", "US"], "kansas city": ["MO", "US"], nashville: ["TN", "US"],
   raleigh: ["NC", "US"], durham: ["NC", "US"], charlotte: ["NC", "US"], columbus: ["OH", "US"], cleveland: ["OH", "US"], "las vegas": ["NV", "US"],
@@ -46,8 +46,8 @@ const CITY_HINTS: Record<string, [string, string]> = {
 
 /** Board shorthand → the city name we store, so "SF" and "San Francisco" compare equal. */
 const CITY_ALIAS: Record<string, string> = {
-  sf: "San Francisco", "sf bay area": "San Francisco", "bay area": "San Francisco", nyc: "New York", "new york city": "New York", sea: "Seattle", chi: "Chicago",
-  atl: "Atlanta", dub: "Dublin", cdmx: "Mexico City", "st louis": "St. Louis", "washington dc": "Washington", "washington, dc": "Washington", "washington d.c.": "Washington",
+  sf: "San Francisco", "sf bay area": "San Francisco", "bay area": "San Francisco", "san francisco bay area": "San Francisco", nyc: "New York", "new york city": "New York", sea: "Seattle", chi: "Chicago",
+  atl: "Atlanta", dub: "Dublin", cdmx: "Mexico City", "st louis": "St. Louis", "washington dc": "Washington", "washington, dc": "Washington", "washington d.c.": "Washington", "washington d.c": "Washington",
 };
 
 /** Tokens that look like a city but are workplace words or placeholders. */
@@ -55,9 +55,10 @@ const PSEUDO = new Set([
   "in-office", "in office", "office", "onsite", "on-site", "on site", "distributed", "remote", "hybrid", "flexible", "anywhere", "worldwide", "global",
   "location", "locations", "n/a", "na", "tbd", "tba", "various", "multiple", "multiple locations", "headquarters", "hq", "home", "work from home", "wfh",
   "rem", "us remote", "remote us", "national", "north america", "amer", "emea", "apac", "latam", "europe", "asia", "west coast", "east coast", "other", "any",
+  "friendly", "remote friendly", "remote-friendly", "select locations", "all locations", "us: select locations", "open", "open to remote", "not specified", "unspecified", "no location", "none",
 ]);
 const REMOTE_RX = /\b(remote|anywhere|distributed|work from home|wfh|rem)\b/i;
-const WORKPLACE_WORD = /^(?:remote|hybrid|on-?site|in-?office|anywhere|distributed|wfh|rem|flexible)$/i;
+const WORKPLACE_WORD = /^(?:remote|hybrid|on-?site|in-?office|anywhere|distributed|wfh|rem|flexible|friendly|remote-?friendly)$/i;
 
 export interface ParsedLocation { raw: string; city: string | null; region: string | null; country: string | null; isRemote: boolean; }
 
@@ -99,7 +100,7 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
     if (COUNTRY_PREFIX[p] && /^[A-Z]{2,3}$/.test(p) && (i + 1 < parts.length || p === "US" || p === "USA")) {
       if (!US_STATES[p] || p === "US" || (i + 1 < parts.length && !US_STATES[parts[i + 1].toUpperCase()])) { out.country ??= COUNTRY_PREFIX[p]; continue; }
     }
-    if (COUNTRIES[pl]) { out.country ??= COUNTRIES[pl]; if (!out.city && CITY_HINTS[pl]) { out.city = p; out.region ??= CITY_HINTS[pl][0] || null; } continue; }
+    if (COUNTRIES[pl]) { out.country ??= COUNTRIES[pl]; if (!out.city && CITY_HINTS[pl]) { out.city = CITY_ALIAS[pl] ?? p; out.region ??= CITY_HINTS[pl][0] || null; } continue; }
     if (US_STATES[p.toUpperCase()] && p.length === 2) { if (!out.country || out.country === "US") { out.region ??= p.toUpperCase(); out.country ??= "US"; } continue; }
     if (STATE_BY_NAME.has(pl)) {
       // "Washington, DC" / "Washington, District of Columbia" is the city, not the state

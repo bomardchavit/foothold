@@ -56,7 +56,7 @@ export function inScope(loc: { country: string | null; isRemote: boolean; raw: s
 }
 
 /** Bump when job parsing changes so the next ingest run re-parses unchanged postings. */
-export const PARSER_VERSION = "7";
+export const PARSER_VERSION = "8";
 
 /** Company domain from a direct apply URL when the source has none (hand-added boards need it for logos and quality flags). */
 function domainFromApplyUrl(applyUrl: string): string | undefined {
@@ -149,7 +149,7 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
       return { id: twin.id, inserted: false, changed: false };
     }
   }
-  const { parsed } = await parseJob({ title: nj.title, description, location: nj.location });
+  const { parsed } = await parseJob({ title: nj.title, description, location: nj.location, company: nj.company });
   const loc = locEarly;
   const remoteSignal = Boolean(nj.isRemote) || parsed.isRemote || loc.isRemote;
   const workplaceType = nj.workplaceType ?? (remoteSignal && parsed.workplaceType !== "HYBRID" ? "REMOTE" : parsed.workplaceType);

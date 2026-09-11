@@ -6,7 +6,7 @@ const OTHER_HDR = /^(?:responsibilities|what\s+you(?:'ll| will)\s+(?:do|be\s+doi
 /** Sections that describe the employer, pay, or hiring policy rather than the job. Never a source of skills. */
 const BOILERPLATE_HDR = /^(?:benefits|perks|compensation|pay\s+transparency|pay\s+range|salary|annual\s+base\s+salary|base\s+salary|total\s+rewards|what\s+we\s+offer|why\s+(?:join|work)|equal\s+(?:employment\s+)?opportunity|eeo|diversity|commitment\s+to\s+diversity|inclusion|our\s+(?:values|mission|culture|story|commitment|benefits)|who\s+we\s+are|about\s+(?!the\s+(?:role|team|job|position|opportunity)\b|you\b)|privacy|accommodations?|how\s+to\s+apply|application\s+process|interview\s+process|hiring\s+process|legal|disclaimer|notice|internship\s+(?:pay|compensation)|us\s+applicants|equity)\b/i;
 /** Lines that are benefits/EEO text wherever they appear (Coinbase and Figma print these as bullets with no header). */
-const BOILERPLATE_LINE = /\b(?:medical|dental|401\s?\(?k\)?|federal,?\s+state|applicable\s+laws?|reasonable\s+accommodations?|hiring\s+process|equal\s+(?:employment\s+)?opportunity|without\s+regard\s+to|protected\s+(?:by\s+law|veteran|characteristic|class)|criminal\s+histor|authoriz(?:ed|ation)\s+to\s+work|visa\s+sponsorship|background\s+check|e-verify|privacy\s+(?:notice|policy)|paid\s+time\s+off|parental\s+leave|stock\s+(?:options|purchase)|\brsus?\b|\bespp\b|life\s+insurance|disability\s+insurance|commuter|wellness\s+(?:stipend|benefit)|gym\s+membership|mental\s+health\s+benefits|health\s+insurance|(?:healthcare|health\s+care),\s+dental)\b/i;
+const BOILERPLATE_LINE = /\b(?:medical|dental|401\s?\(?k\)?|federal,?\s+state|applicable\s+laws?|reasonable\s+accommodations?|hiring\s+process|equal\s+(?:employment\s+)?opportunity|without\s+regard\s+to|protected\s+(?:by\s+law|veteran|characteristic|class)|criminal\s+histor|authoriz(?:ed|ation)\s+to\s+work|visa\s+sponsorship|background\s+check|e-verify|privacy\s+(?:notice|policy)|paid\s+time\s+off|parental\s+leave|stock\s+(?:options|purchase)|\brsus?\b|\bespp\b|life\s+insurance|disability\s+insurance|commuter|wellness\s+(?:stipend|benefit)|gym\s+membership|mental\s+health\s+benefits|health\s+insurance|(?:healthcare|health\s+care),\s+dental)\b|generative\s+ai\s+responsibly|human\s+oversight/i;
 
 const BULLET_RX = /^\s*[•\-*–—▪●‣◦►]\s*/;
 
@@ -71,11 +71,13 @@ function salaryCandidates(text: string): SalaryCandidate[] {
   const out: SalaryCandidate[] = [];
   const push = (index: number, lo: number, hi: number | null, currency: string, period: Salary["salaryPeriod"]) => {
     if (period === "year" && (lo < 15000 || (hi != null && (hi < lo || hi >= 2_000_000)))) return;
+    if (period === "month" && (lo < 1500 || (hi != null && (hi < lo || hi >= 100_000)))) return;
     out.push({ index, salaryMin: lo, salaryMax: hi, salaryCurrency: currency, salaryPeriod: period });
   };
   // $150,000 - $190,000 · $153,000 — $376,000 USD · $244,000.00 - $310,000.00 · USD 150,000 to 200,000
   for (const m of text.matchAll(/(?:([$€£])\s?|\b(USD|CAD|EUR|GBP|AUD)\s?\$?)(\d{1,3}(?:,\d{3})+|\d{5,6})(?:\.\d{2})?\s*(?:-|–|—|to)\s*(?:[$€£]\s?|(?:USD|CAD|EUR|GBP|AUD)\s?)?(\d{1,3}(?:,\d{3})+|\d{5,6})(?:\.\d{2})?(?!\s*k)\s*(USD|CAD|EUR|GBP|AUD)?\b/gi)) {
-    push(m.index, num(m[3]), num(m[4]), CURRENCY[(m[5] ?? m[2] ?? m[1]).toUpperCase()] ?? CURRENCY[m[1] ?? "$"] ?? "USD", "year");
+    const period = /\bmonthly\b|\bper\s+month\b|\/\s*month\b/i.test(text.slice(Math.max(0, m.index - 80), m.index + m[0].length + 12)) ? "month" : "year";
+    push(m.index, num(m[3]), num(m[4]), CURRENCY[(m[5] ?? m[2] ?? m[1]).toUpperCase()] ?? CURRENCY[m[1] ?? "$"] ?? "USD", period);
   }
   // $120k–$160k · $120K - 160K
   for (const m of text.matchAll(/([$€£])\s?(\d{2,3})\s?k\s*(?:-|–|—|to)\s*[$€£]?\s?(\d{2,3})\s?k\b/gi)) push(m.index, Number(m[2]) * 1000, Number(m[3]) * 1000, CURRENCY[m[1]] ?? "USD", "year");
@@ -197,7 +199,11 @@ export function parseJobHeuristic(input: ParseJobInput): JobParsed {
   if (requiredSkills.length <= titleSkills.length) requiredSkills = clean([...titleSkills, ...skillsFrom(other, { domainOnlyInBullets: true })]);
   let preferredSkills = clean(skillsFrom(preferred, { domainOnlyInBullets: true })).filter((s) => !requiredSkills.includes(s));
   // Technologies named in the team/role description ("our backend monorepo in Go, Python and Rust") are useful signal without being hard requirements.
-  const bodyTech = clean(skillsFrom(other, { technicalOnly: true })).filter((s) => !requiredSkills.includes(s) && !preferredSkills.includes(s));
+  // Lines that talk about the employer ("Anduril is committed to ... computer vision, sensor fusion") describe the company, not the role.
+  const companyWord = input.company ? input.company.trim().split(/\s+/)[0]?.replace(/[^\w.&'-]/g, "") : "";
+  const companyRx = companyWord && companyWord.length >= 3 ? new RegExp(`\\b${companyWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i") : null;
+  const bodyProse = companyRx ? other.split("\n").filter((l) => !companyRx.test(l)).join("\n") : other;
+  const bodyTech = clean(skillsFrom(bodyProse, { technicalOnly: true })).filter((s) => !requiredSkills.includes(s) && !preferredSkills.includes(s));
   preferredSkills = [...preferredSkills, ...bodyTech.slice(0, 8)];
   const years = extractYears(required.length > 40 ? required : input.description);
   const y2 = years.yearsMin == null ? extractYears(input.description) : years;

@@ -76,3 +76,16 @@ describe("computeYearsExperience", () => {
     expect(computeYearsExperience([{ startDate: "2025-09", endDate: null, isCurrent: true, title: "PM" }], now)).toBe(1);
   });
 });
+
+describe("level direction", () => {
+  it("a posting one rung below the target costs more than one rung above; overshooting an explicit years cap is not a perfect fit", () => {
+    const mid: ScoreProfileInput = { ...profile, seniority: "MID", yearsExperience: 6.2 };
+    const newGrad = scoreMatch(mid, { ...job, seniority: "ENTRY", yearsMin: 0, yearsMax: 2 }, null, null);
+    const senior = scoreMatch(mid, { ...job, seniority: "SENIOR", yearsMin: 5, yearsMax: null }, null, null);
+    expect(newGrad.components.find((c) => c.key === "seniority")!.score).toBe(40);
+    expect(senior.components.find((c) => c.key === "seniority")!.score).toBe(70);
+    expect(newGrad.components.find((c) => c.key === "years")!.score).toBe(80);
+    expect(senior.components.find((c) => c.key === "years")!.score).toBe(100);
+    expect(newGrad.total).toBeLessThan(senior.total);
+  });
+});

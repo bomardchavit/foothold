@@ -72,6 +72,7 @@ npm run scrape -- logos --retry                    # every company gets a logo (
 npm run scrape -- logos --revalidate               # re-check stored logos against the shape rules, replace share banners and broken files
 npm run scrape -- industries                       # curated employer industries and headcount buckets overwrite keyword guesses and blanks
 npm run scrape -- prune                            # retire postings outside JOBS_COUNTRIES
+npm run scrape -- reparse                          # re-run the parser over stored postings after a parser change (no refetch), re-score changed rows
 ```
 
 Postings a board stops returning are marked closed and drop out of the feed, scoring, digests and similar-roles (rows a user tracked are kept, with a "No longer listed" badge on the job page).

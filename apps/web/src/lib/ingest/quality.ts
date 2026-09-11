@@ -20,8 +20,8 @@ const DAY = 86400_000;
 const SPAM_PATTERNS: RegExp[] = [
   /earn\s+\$?\d[\d,]*\s*(?:per|a|\/)\s*(?:day|week)/i,
   /no experience (?:necessary|needed|required)[\s\S]{0,80}(?:work from home|from home)/i,
-  /(?:training|registration|application|processing|starter|activation)\s+fee/i,
-  /\b(?:whatsapp|telegram)\b/i,
+  /(?:training|registration|application|starter|activation)\s+fee/i,
+  /\b(?:contact|message|text|reach|dm|apply)\s+(?:us|me)\b[^.\n]{0,40}\b(?:whatsapp|telegram)\b|\b(?:whatsapp|telegram)\b[^.\n]{0,15}\+?\d[\d\s()-]{7,}/i,
   /\bmlm\b|multi-?level marketing|network marketing/i,
   /crypto(?:currency)?\s+(?:investment|trading)\s+(?:opportunity|program)/i,
   /guaranteed\s+(?:income|earnings|returns)/i,
@@ -30,7 +30,7 @@ const SPAM_PATTERNS: RegExp[] = [
   /work \d+ hours? (?:a|per) (?:day|week) and (?:earn|make)/i,
   /(?:send|provide) (?:your )?(?:ssn|social security|bank (?:account|details)|copy of (?:your )?(?:id|passport))/i,
   /(?:🚀|💰|💸|🤑|🔥){3,}/,
-  /\b(?:wire|western union|gift cards?)\b[\s\S]{0,60}\b(?:payment|paid|reimburse)/i,
+  /\b(?:western union|gift cards?)\b[\s\S]{0,60}\b(?:payment|paid|reimburse)|\bwire\s+(?:us|me)\s+(?:money|funds|the\s+payment)\b/i,
 ];
 
 /**
