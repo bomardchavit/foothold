@@ -1,5 +1,4 @@
-import { requireUser } from "@/lib/session";
-import { ensureProfile } from "@/lib/profile/service";
+import { requireOnboarded } from "@/lib/session";
 import { profileToEdit } from "@/lib/profile/forms";
 import { ProfileEditor } from "@/components/profile/profile-editor";
 import { UploadStep } from "@/components/onboarding/upload-step";
@@ -8,8 +7,7 @@ export const metadata = { title: "Profile" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsProfilePage() {
-  const user = await requireUser();
-  const profile = await ensureProfile(user.id);
+  const { profile } = await requireOnboarded();
   return (
     <div className="space-y-8">
       <details className="rounded-xl border bg-card p-4">

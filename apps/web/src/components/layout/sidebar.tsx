@@ -27,12 +27,11 @@ export function Sidebar({ user, onboarded }: { user: SessionUser; onboarded: boo
   const content = <SidebarContent user={user} onboarded={onboarded} onNavigate={() => setOpen(false)} />;
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[276px] shrink-0 flex-col border-r border-border/70 bg-background lg:flex" data-testid="sidebar">{content}</aside>
+      <aside aria-label="Sidebar" className="sticky top-0 hidden h-screen w-[276px] shrink-0 flex-col border-r border-border/70 bg-background lg:flex" data-testid="sidebar">{content}</aside>
       <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center gap-3 border-b bg-card/95 px-4 backdrop-blur lg:hidden">
-        <button aria-label="Open menu" className="rounded-md p-2 hover:bg-accent" onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></button>
+        <button aria-label="Open menu" className="focus-ring rounded-md p-2 hover:bg-accent" onClick={() => setOpen(true)}><Menu className="h-5 w-5" /></button>
         <Wordmark href={onboarded ? "/jobs" : "/onboarding"} />
       </div>
-      <div className="h-14 lg:hidden" />
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="left" className="w-[280px] p-0"><SheetTitle className="sr-only">Navigation</SheetTitle>{content}</SheetContent>
       </Sheet>
@@ -51,7 +50,7 @@ function SidebarContent({ user, onboarded, onNavigate }: { user: SessionUser; on
         {NAV.map((n) => {
           const active = n.href !== "#belay" && (path === n.href || (n.href !== "/" && path.startsWith(n.href) && n.href !== "/settings/profile")) || (n.href === "/settings/profile" && path === "/settings/profile");
           const Icon = n.icon;
-          const cls = cn("flex h-[46px] w-full items-center gap-3.5 rounded-xl px-3.5 text-[16px] transition-colors", active ? "bg-accent font-semibold text-foreground" : "text-foreground/85 hover:bg-accent/60", !onboarded && "pointer-events-none opacity-50");
+          const cls = cn("focus-ring flex h-[46px] w-full items-center gap-3.5 rounded-xl px-3.5 text-[16px] transition-colors", active ? "bg-accent font-semibold text-foreground" : "text-foreground/85 hover:bg-accent/60", !onboarded && "pointer-events-none opacity-50");
           if (n.href === "#belay") return <button key={n.href} className={cls} onClick={() => { copilot.open(); onNavigate(); }} data-testid="nav-belay"><Icon className="h-5 w-5" />{n.label}</button>;
           return (
             <Link key={n.href} href={n.href} className={cls} onClick={onNavigate} data-testid={`nav-${n.label.toLowerCase()}`}>
@@ -62,19 +61,19 @@ function SidebarContent({ user, onboarded, onNavigate }: { user: SessionUser; on
         })}
       </nav>
       <div className="mt-auto space-y-4">
-        <Link href="/settings/extension" onClick={onNavigate} className="block rounded-2xl bg-[linear-gradient(135deg,oklch(0.95_0.03_45),oklch(0.93_0.035_75))] p-4 transition hover:brightness-[0.98]">
-          <p className="flex items-center gap-2 text-[15px] font-semibold"><Puzzle className="h-4 w-4 text-primary" /> Apply faster <ChevronRight className="ml-auto h-4 w-4 text-foreground/60" /></p>
-          <p className="mt-1.5 text-[13px] leading-snug text-foreground/70">Install the Chrome extension to fill Greenhouse and Lever forms from your profile.</p>
+        <Link href="/settings/extension" onClick={onNavigate} className="focus-ring block rounded-2xl bg-[linear-gradient(135deg,oklch(0.95_0.03_45),oklch(0.93_0.035_75))] p-4 transition hover:brightness-[0.98]">
+          <p className="flex items-center gap-2 text-[15px] font-semibold"><Puzzle className="h-4 w-4 text-primary" /> Apply faster <ChevronRight className="ml-auto h-4 w-4 text-muted-strong" aria-hidden /></p>
+          <p className="mt-1.5 text-[13px] leading-snug text-muted-strong">Install the Chrome extension to fill Greenhouse and Lever forms from your profile.</p>
         </Link>
         <nav className="space-y-0.5">
-          <Link href="/messages" onClick={onNavigate} className={cn("flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] hover:bg-accent/60", path === "/messages" ? "bg-accent font-semibold" : "text-foreground/80")}><Bell className="h-5 w-5" /> Messages</Link>
-          <a href="mailto:feedback@example.com?subject=Foothold%20feedback" className="flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] text-foreground/80 hover:bg-accent/60"><MessageCircleQuestion className="h-5 w-5" /> Feedback</a>
-          <Link href="/settings" onClick={onNavigate} className={cn("flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] hover:bg-accent/60", path === "/settings" ? "bg-accent font-semibold" : "text-foreground/80")}><Settings className="h-5 w-5" /> Settings</Link>
+          <Link href="/messages" onClick={onNavigate} className={cn("focus-ring flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] hover:bg-accent/60", path === "/messages" ? "bg-accent font-semibold" : "text-foreground/80")}><Bell className="h-5 w-5" /> Messages</Link>
+          <a href="mailto:feedback@example.com?subject=Foothold%20feedback" className="focus-ring flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] text-foreground/80 hover:bg-accent/60"><MessageCircleQuestion className="h-5 w-5" /> Feedback</a>
+          <Link href="/settings" onClick={onNavigate} className={cn("focus-ring flex h-10 items-center gap-3 rounded-lg px-3 text-[15px] hover:bg-accent/60", path === "/settings" ? "bg-accent font-semibold" : "text-foreground/80")}><Settings className="h-5 w-5" /> Settings</Link>
         </nav>
         <div className="flex items-center gap-3 border-t pt-4">
           <Avatar className="h-9 w-9"><AvatarImage src={user.image ?? undefined} alt="" /><AvatarFallback>{initials || "?"}</AvatarFallback></Avatar>
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user.name ?? user.email}</p><p className="truncate text-xs text-muted-foreground">{user.email}</p></div>
-          <button className="text-xs text-muted-foreground underline" onClick={() => signOutAction()}>Sign out</button>
+          <button className="focus-ring rounded-sm text-xs text-muted-strong underline" onClick={() => signOutAction()}>Sign out</button>
         </div>
       </div>
     </div>

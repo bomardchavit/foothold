@@ -1,5 +1,5 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import { requireUser } from "@/lib/session";
+import { requireOnboarded } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { PairingPanel } from "@/components/settings/pairing-panel";
 
@@ -7,7 +7,7 @@ export const metadata = { title: "Chrome extension" };
 export const dynamic = "force-dynamic";
 
 export default async function ExtensionSettingsPage() {
-  const user = await requireUser();
+  const { user } = await requireOnboarded();
   const tokens = await prisma.extensionToken.findMany({ where: { userId: user.id, revokedAt: null }, orderBy: { createdAt: "desc" } });
   return (
     <div className="space-y-6">

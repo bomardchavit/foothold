@@ -1,7 +1,7 @@
-import { splitLines, SENIORITY_LABELS, WORK_AUTH_LABELS, type MatchBreakdown } from "@foothold/shared";
+import { splitLines, SENIORITY_LABELS, WORK_AUTH_LABELS, EMPLOYMENT_TYPE_LABELS, type MatchBreakdown } from "@foothold/shared";
 import type { FullProfile } from "../profile/service";
 import { experienceDateRange } from "../profile/service";
-import type { JobWithCompany } from "../matching/service";
+import { jobSkills, type JobWithCompany } from "../matching/service";
 
 export interface CtxLine { id: string; kind: "P" | "J" | "M"; label: string; text: string; ref?: { type: string; id?: string } }
 
@@ -31,9 +31,10 @@ export function buildJobLines(job: JobWithCompany): CtxLine[] {
   const out: CtxLine[] = [];
   let n = 0;
   const push = (label: string, text: string) => { n++; out.push({ id: `J${n}`, kind: "J", label, text: text.replace(/\s+/g, " ").trim() }); };
-  push("Role", `${job.title} at ${job.company.name}${job.location ? `, ${job.location}` : ""}${job.isRemote ? " (remote)" : ""}. Level: ${SENIORITY_LABELS[job.seniority]}.${job.yearsMin != null ? ` Years: ${job.yearsMin}${job.yearsMax != null ? `–${job.yearsMax}` : "+"}.` : ""}${job.salaryMin ? ` Salary ${job.salaryMin.toLocaleString()}–${(job.salaryMax ?? job.salaryMin).toLocaleString()} ${job.salaryCurrency ?? "USD"}/${job.salaryPeriod ?? "year"}.` : ""}`);
-  if (job.requiredSkills.length) push("Required skills", job.requiredSkills.join(", "));
-  if (job.preferredSkills.length) push("Preferred skills", job.preferredSkills.join(", "));
+  const skills = jobSkills(job);
+  push("Role", `${job.title} at ${job.company.name}${job.location ? `, ${job.location}` : ""}${job.isRemote ? " (remote)" : ""}. Level: ${SENIORITY_LABELS[job.seniority]}.${job.employmentType !== "UNKNOWN" ? ` ${EMPLOYMENT_TYPE_LABELS[job.employmentType]}.` : ""}${job.yearsMin != null ? ` Years: ${job.yearsMin}${job.yearsMax != null ? `–${job.yearsMax}` : "+"}.` : ""}${job.salaryMin ? ` Salary ${job.salaryMin.toLocaleString()}–${(job.salaryMax ?? job.salaryMin).toLocaleString()} ${job.salaryCurrency ?? "USD"}/${job.salaryPeriod ?? "year"}.` : " Salary not stated in the posting."}`);
+  if (skills.required.length) push("Required skills", skills.required.join(", "));
+  if (skills.preferred.length) push("Preferred skills", skills.preferred.join(", "));
   if (job.company.h1bSignal !== "UNKNOWN") push("Sponsorship", `USCIS data shows ${job.company.h1bMatchedName ?? job.company.name} with ${job.company.h1bApprovals} H-1B approvals in FY ${job.company.h1bYears.join(", ")} (${job.company.h1bSignal === "YES" ? "exact" : "fuzzy"} name match).`);
   for (const line of splitLines(job.description, 140)) push("Posting", line);
   return out;
@@ -48,6 +49,7 @@ export function buildMatchLines(b: MatchBreakdown): CtxLine[] {
   if (b.matchedSkills.length) push("Matched skills", b.matchedSkills.join(", "));
   if (b.missingRequired.length) push("Missing required skills", b.missingRequired.join(", "));
   if (b.missingPreferred.length) push("Missing preferred skills", b.missingPreferred.join(", "));
+  for (const a of b.adjustments ?? []) push(a.key === "roleFit" ? "Role fit" : "Employment type", a.reason);
   return out;
 }
 

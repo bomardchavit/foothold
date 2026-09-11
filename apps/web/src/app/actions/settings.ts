@@ -11,17 +11,38 @@ import { sendDigestToUser } from "@/lib/digest/send";
 
 type Result<T = undefined> = { ok: true; data: T } | { ok: false; error: string };
 
+/** RFC 4648 base32 alphabet: no 0/1/8-lookalike ambiguity beyond O/I, which the pairing endpoint normalises. */
+const CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+const PAIRING_CODE_LENGTH = 8;
+const PAIRING_CODE_TTL_MS = 10 * 60_000;
+
+/** 8 base32 characters from 40 random bits (about 1.1e12 possibilities), valid for 10 minutes, single use. */
+function newPairingCode(): string {
+  const bytes = randomBytes(5);
+  let bits = 0, acc = 0, out = "";
+  for (const b of bytes) {
+    acc = (acc << 8) | b; bits += 8;
+    while (bits >= 5) { out += CODE_ALPHABET[(acc >>> (bits - 5)) & 31]; bits -= 5; }
+  }
+  return out.slice(0, PAIRING_CODE_LENGTH);
+}
+
 export async function createPairingCodeAction(): Promise<Result<{ code: string; expiresAt: string }>> {
   const user = await requireUser();
-  const code = randomBytes(4).toString("hex").toUpperCase().slice(0, 6);
-  const expiresAt = new Date(Date.now() + 10 * 60_000);
-  await prisma.extensionPairingCode.create({ data: { userId: user.id, code, expiresAt } });
+  const code = newPairingCode();
+  const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MS);
+  // One live code per user: generating a new one retires any unused earlier codes.
+  await prisma.$transaction([
+    prisma.extensionPairingCode.deleteMany({ where: { userId: user.id, usedAt: null } }),
+    prisma.extensionPairingCode.create({ data: { userId: user.id, code, expiresAt } }),
+  ]);
   return { ok: true, data: { code, expiresAt: expiresAt.toISOString() } };
 }
 
 export async function revokeTokenAction(id: string): Promise<Result> {
   const user = await requireUser();
-  await prisma.extensionToken.updateMany({ where: { id, userId: user.id }, data: { revokedAt: new Date() } });
+  const r = await prisma.extensionToken.updateMany({ where: { id, userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } });
+  if (!r.count) return { ok: false, error: "That extension is already unpaired." };
   revalidatePath("/settings/extension");
   return { ok: true, data: undefined };
 }
@@ -97,4 +118,3 @@ export async function deleteAccountAction(confirmEmail: string): Promise<Result>
   await signOut({ redirectTo: "/" });
   return { ok: true, data: undefined };
 }
-

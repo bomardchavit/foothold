@@ -1,4 +1,6 @@
 // Background worker: `npm run worker` (requires JOBS_MODE=queue in the web app to route jobs here).
+// Headless rendering for careers crawls is allowed here (never inside the web server); SCRAPER_RENDER=0 turns it off.
+process.env.SCRAPER_RENDER ??= "1";
 import { PgBoss, type Job } from "pg-boss";
 import { JOB_HANDLERS, type JobName } from "./lib/jobs/registry";
 

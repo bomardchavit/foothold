@@ -1,6 +1,7 @@
 /**
  * robots.txt compliance (RFC 9309). Every HTML/undocumented-endpoint fetch goes through isAllowed().
- * Unreachable robots (network error / 5xx) is treated as "do not crawl" for 30 minutes; 404 means allow.
+ * 404/410 and 401/403 ("unavailable", RFC 9309 §2.3.1.3) mean the site publishes no rules for us: allow. Unreachable robots
+ * (network error / 5xx) is treated as "do not crawl" for 30 minutes.
  */
 export const BOT_TOKEN = "FootholdBot";
 export const BOT_UA = `${BOT_TOKEN}/0.1 (+https://github.com/foothold-app; job aggregator; ${process.env.SCRAPER_CONTACT ?? "no-contact-configured"})`;
@@ -49,7 +50,7 @@ export async function getRules(origin: string): Promise<Rules> {
   let rules: Rules;
   try {
     const res = await fetch(`${origin}/robots.txt`, { headers: { "User-Agent": BOT_UA }, signal: AbortSignal.timeout(10_000), redirect: "follow" });
-    if (res.status === 404 || res.status === 410) rules = { rules: [], crawlDelay: null, sitemaps: [], status: "none" };
+    if (res.status === 404 || res.status === 410 || res.status === 401 || res.status === 403) rules = { rules: [], crawlDelay: null, sitemaps: [], status: "none" };
     else if (res.ok) rules = parseRobots(await res.text());
     else rules = { rules: [{ allow: false, rx: /^\//, len: 1 }], crawlDelay: null, sitemaps: [], status: "error" };
   } catch {

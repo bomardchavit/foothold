@@ -10,6 +10,7 @@ export const usajobs: SourceAdapter = {
   kind: "USAJOBS", label: "USAJobs search", needsKey: true,
   async fetchJobs({ slug }) {
     if (!env.usajobs) throw new Error("USAJOBS_API_KEY not set");
+    if (/example\.com$/i.test(env.usajobs.userAgent) || !env.usajobs.userAgent.includes("@")) throw new Error("set USAJOBS_USER_AGENT to the email address registered with your USAJobs API key (the API rejects other user agents)");
     const data = await getJson<{ SearchResult: { SearchResultItems: UsaJobItem[] } }>(
       `https://data.usajobs.gov/api/search?Keyword=${encodeURIComponent(slug)}&ResultsPerPage=50`,
       { "Authorization-Key": env.usajobs.key, "User-Agent": env.usajobs.userAgent, Host: "data.usajobs.gov" },

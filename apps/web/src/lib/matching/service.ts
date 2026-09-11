@@ -1,14 +1,28 @@
 import type { Job, Company, CandidateProfile } from "@prisma/client";
-import { scoreMatch, type ScoreJobInput, type MatchBreakdown, type ScoreProfileInput } from "@foothold/shared";
+import { scoreMatch, industryForDomain, stripEmployerSkills, type ScoreJobInput, type MatchBreakdown, type ScoreProfileInput } from "@foothold/shared";
 import { prisma } from "../db";
 import { toScoreProfile } from "../profile/service";
 
 export type JobWithCompany = Job & { company: Company };
 
+/** The industry we trust for a job: a curated employer entry beats the keyword guess stored on the row. */
+export function jobIndustry(job: JobWithCompany): { industry: string | null; confidence: "known" | "inferred" } {
+  const known = industryForDomain(job.company.domain);
+  if (known) return { industry: known, confidence: "known" };
+  return { industry: job.industry ?? job.company.industry ?? null, confidence: "inferred" };
+}
+
+/** Required/preferred skills with the employer's own name removed (older rows were parsed before that filter existed). */
+export function jobSkills(job: JobWithCompany): { required: string[]; preferred: string[] } {
+  return { required: stripEmployerSkills(job.requiredSkills, job.company.name), preferred: stripEmployerSkills(job.preferredSkills, job.company.name) };
+}
+
 export function toScoreJob(job: JobWithCompany): ScoreJobInput {
+  const { industry, confidence } = jobIndustry(job);
+  const skills = jobSkills(job);
   return {
-    title: job.title, requiredSkills: job.requiredSkills, preferredSkills: job.preferredSkills, seniority: job.seniority,
-    yearsMin: job.yearsMin, yearsMax: job.yearsMax, industry: job.industry ?? job.company.industry ?? null,
+    title: job.title, requiredSkills: skills.required, preferredSkills: skills.preferred, seniority: job.seniority, employmentType: job.employmentType,
+    yearsMin: job.yearsMin, yearsMax: job.yearsMax, industry, industryConfidence: confidence,
     isRemote: job.isRemote, location: job.location, city: job.city, region: job.region, country: job.country,
   };
 }

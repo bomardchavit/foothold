@@ -2,18 +2,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { ensureBaseResumeAction } from "@/app/actions/resume";
 import { toast } from "sonner";
-export function CreateBaseButton() {
+
+/** Opens the base résumé: reuses the newest one while the profile is unchanged, builds a fresh one otherwise. */
+export function CreateBaseButton({ hasBase }: { hasBase: boolean }) {
   const [busy, setBusy] = useState(false);
   const router = useRouter();
   return (
     <Button variant="outline" disabled={busy} data-testid="create-base" onClick={async () => {
       setBusy(true);
-      const res = await fetch("/api/resume/base", { method: "POST" });
+      const r = await ensureBaseResumeAction();
       setBusy(false);
-      if (!res.ok) { toast.error("Could not build the résumé"); return; }
-      const { id } = await res.json();
-      router.push(`/resumes/${id}`);
-    }}>{busy ? "Building…" : "Build base résumé"}</Button>
+      if (!r.ok) { toast.error(r.error); return; }
+      if (r.data.reused) toast.info("Your base résumé already matches your profile. Opening it.");
+      router.push(`/resumes/${r.data.id}`);
+    }}>{busy ? "Building…" : hasBase ? "Open base résumé" : "Build base résumé"}</Button>
   );
 }

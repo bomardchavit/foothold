@@ -1,13 +1,17 @@
 // Scraper pipeline CLI (public APIs + robots.txt-compliant crawling; no proxy/UA rotation).
-//   npm run scrape                          run every enabled source once
-//   npm run scrape -- --watch 30            run every 30 minutes until stopped
-//   npm run scrape -- discover stripe.com   find where a company hosts its jobs and register the sources
-//   npm run scrape -- careers https://example.com/careers   crawl a careers site (JSON-LD JobPosting)
-//   npm run scrape -- greenhouse:stripe     run one source by kind:slug (created if missing)
-//   npm run scrape -- bootstrap [n]         register + ingest the curated US companies (first n)
-//   npm run scrape -- logos [n]             fetch missing company logos
-//   npm run scrape -- prune                 drop jobs outside JOBS_COUNTRIES
-//   npm run scrape -- export                write data/exports/jobs.json (normalized dump)
+//   npm run ingest                          run every enabled source once
+//   npm run ingest -- --watch 30            run every 30 minutes until stopped
+//   npm run ingest -- discover stripe.com   find where a company hosts its jobs and register the sources
+//   npm run ingest -- careers https://example.com/careers   crawl a careers site (JSON-LD JobPosting)
+//   npm run ingest -- greenhouse:stripe     run one source by kind:slug (created if missing)
+//   npm run ingest -- bootstrap [n]         register + ingest the curated US companies (first n)
+//   npm run ingest -- logos [n] [--retry]   give every company a logo (site icon → favicon services → generated mark);
+//                                           --retry also re-probes companies still on a generated mark
+//   npm run ingest -- prune                 retire jobs outside JOBS_COUNTRIES
+//   npm run ingest -- dedupe                merge one-posting-per-office duplicates into one row
+//   npm run ingest -- export                write data/exports/jobs.json (normalized dump)
+// Headless rendering for careers crawls is allowed in this process (never inside the web server); SCRAPER_RENDER=0 turns it off.
+process.env.SCRAPER_RENDER ??= "1";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { prisma } from "../src/lib/db";
@@ -38,7 +42,8 @@ async function main() {
   const argv = process.argv.slice(2);
   const watchIdx = argv.indexOf("--watch");
   const everyMin = watchIdx >= 0 ? Number(argv[watchIdx + 1]) || 30 : 0;
-  const args = watchIdx >= 0 ? argv.filter((_, i) => i !== watchIdx && i !== watchIdx + 1) : argv;
+  const retry = argv.includes("--retry");
+  const args = (watchIdx >= 0 ? argv.filter((_, i) => i !== watchIdx && i !== watchIdx + 1) : argv).filter((a) => a !== "--retry");
   const [cmd, arg] = args;
   const once = async () => {
     if (!cmd) { await ingestAllJob(); return; }
@@ -53,8 +58,9 @@ async function main() {
       return;
     }
     if (cmd === "bootstrap") { const { bootstrapUsCompanies } = await import("../src/lib/ingest/run"); await bootstrapUsCompanies({ limit: arg ? Number(arg) : undefined }); return; }
-    if (cmd === "logos") { const { resolveMissingLogos } = await import("../src/lib/logos/resolve"); console.log("resolved", await resolveMissingLogos(arg ? Number(arg) : 200), "logos"); return; }
-    if (cmd === "prune") { const { pruneOutOfScope } = await import("../src/lib/ingest/run"); console.log("removed", await pruneOutOfScope(), "out-of-scope jobs"); return; }
+    if (cmd === "logos") { const { resolveMissingLogos } = await import("../src/lib/logos/resolve"); console.log("resolved", await resolveMissingLogos(arg ? Number(arg) : 200, { retry }), "logos"); return; }
+    if (cmd === "prune") { const { pruneOutOfScope } = await import("../src/lib/ingest/run"); console.log("retired", await pruneOutOfScope(), "out-of-scope jobs"); return; }
+    if (cmd === "dedupe") { const { mergeDuplicatePostings } = await import("../src/lib/ingest/run"); console.log("merged", await mergeDuplicatePostings(), "duplicate rows"); return; }
     if (cmd === "careers") { if (!arg) throw new Error("usage: careers <careers-url>"); await runKindSlug("CAREERS", arg); return; }
     const [k, ...rest] = cmd.split(":");
     const slug = rest.join(":");

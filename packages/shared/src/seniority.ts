@@ -9,17 +9,29 @@ export const SENIORITY_RUNG: Record<SeniorityKey, number | null> = {
   INTERN: 0, ENTRY: 1, MID: 2, SENIOR: 3, STAFF: 4, PRINCIPAL: 5, MANAGER: 3.5, DIRECTOR: 5, EXECUTIVE: 6, UNKNOWN: null,
 };
 
+/** People-management rungs form a separate track from the individual-contributor ladder. */
+export const MANAGEMENT_TRACK: ReadonlySet<SeniorityKey> = new Set<SeniorityKey>(["MANAGER", "DIRECTOR", "EXECUTIVE"]);
+export function isManagementLevel(k: SeniorityKey): boolean {
+  return MANAGEMENT_TRACK.has(k);
+}
+
+/** "Engineer II", "Analyst 3", "Level 2": a level token only counts at the end of the title (or before a separator), so "Tier 3 Support" is not senior. */
+const LEVEL_TOKEN = /\b(?:level\s*)?(ii|iii|iv|[1-4])\b(?=\s*$|\s*[,(|]|\s+[-–—]\s)/i;
+
 export function inferSeniorityFromTitle(title: string): SeniorityKey {
-  const t = title.toLowerCase();
+  const t = title.toLowerCase().replace(/\s+/g, " ").trim();
   if (/\b(intern|internship|co-op|coop)\b/.test(t)) return "INTERN";
   if (/\b(chief|cto|ceo|cfo|coo|cpo|vp|vice president|svp|evp|president)\b/.test(t)) return "EXECUTIVE";
   if (/\bdirector\b/.test(t)) return "DIRECTOR";
-  if (/\b(head of|manager|mgr)\b/.test(t) && !/\bproduct manager\b|\bprogram manager\b|\bproject manager\b|\baccount manager\b/.test(t)) return "MANAGER";
-  if (/\b(principal|distinguished|fellow|architect)\b/.test(t)) return "PRINCIPAL";
-  if (/\b(staff|lead)\b/.test(t)) return "STAFF";
-  if (/\b(senior|sr\.?|iii|3)\b/.test(t)) return "SENIOR";
-  if (/\b(junior|jr\.?|associate|entry|new grad|graduate|early career|apprentice|\bi\b)\b/.test(t)) return "ENTRY";
-  if (/\b(ii|2)\b/.test(t)) return "MID";
+  if (/\b(head of|manager|mgr)\b/.test(t) && !/\bproduct manager\b|\bprogram manager\b|\bproject manager\b|\baccount manager\b|\bcommunity manager\b|\bmarketing manager\b/.test(t)) return "MANAGER";
+  if (/\b(principal|distinguished|fellow)\b/.test(t)) return "PRINCIPAL";
+  if (/\b(staff|lead)\b/.test(t) || /\b(?:tech|technical|team|engineering)\s+leader\b/.test(t)) return "STAFF";
+  if (/\b(senior|sr\.?)\b/.test(t)) return "SENIOR";
+  if (/\barchitect\b/.test(t)) return "SENIOR"; // solutions/software architects are senior ICs unless the title says principal/chief
+  const level = LEVEL_TOKEN.exec(t)?.[1];
+  if (level === "iii" || level === "3" || level === "iv" || level === "4") return "SENIOR";
+  if (/\b(junior|jr\.?|associate|entry|new grad|graduate|early career|apprentice)\b/.test(t) || /\bi\b(?=\s*$|\s*[,(|]|\s+[-–—]\s)/.test(t)) return "ENTRY";
+  if (level === "ii" || level === "2") return "MID";
   return "UNKNOWN";
 }
 
@@ -27,7 +39,7 @@ export function seniorityFromYears(yearsMin: number | null | undefined): Seniori
   if (yearsMin == null) return "UNKNOWN";
   if (yearsMin <= 1) return "ENTRY";
   if (yearsMin <= 4) return "MID";
-  if (yearsMin <= 7) return "SENIOR";
+  if (yearsMin <= 9) return "SENIOR";
   return "STAFF";
 }
 

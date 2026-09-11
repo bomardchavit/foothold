@@ -29,15 +29,15 @@ export function RightRail({ user, savedFilters, currentParams, activeId }: { use
   for (const [k, v] of Object.entries(currentParams)) { const s = Array.isArray(v) ? v[0] : v; if (s && k !== "sf" && k !== "page") current[k] = s; }
   const save = () => start(async () => { const r = await saveFilterAction(name, current); if (r.ok) { setNaming(false); setName(""); toast.success("Filter saved"); router.push(`${path}?sf=${r.data.id}`); } else toast.error(r.error); });
   return (
-    <aside className="sticky top-0 hidden h-screen w-[400px] shrink-0 border-l border-border/70 bg-background min-[1500px]:block" data-testid="right-rail">
-      <div className="flex h-[76px] items-center gap-3 border-b border-border/70 px-5">
+    <aside aria-label="Saved filters" className="sticky top-0 hidden h-screen w-[300px] shrink-0 overflow-y-auto border-l border-border/70 bg-background xl:block" data-testid="right-rail">
+      <div className="flex h-[68px] items-center gap-3 border-b border-border/70 px-5">
         <Avatar className="h-9 w-9"><AvatarImage src={user.image ?? undefined} alt="" /><AvatarFallback className="bg-primary/20 font-semibold text-primary">{initials || "?"}</AvatarFallback></Avatar>
-        <p className="truncate text-[16px] font-semibold">{user.name ?? user.email}</p>
-        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-[13px] font-medium"><Rocket className="h-3.5 w-3.5" /> Free Plan</span>
+        <p className="min-w-0 flex-1 truncate text-[15px] font-semibold">{user.name ?? user.email}</p>
+        <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-muted px-2.5 py-1.5 text-[12px] font-medium"><Rocket aria-hidden className="h-3.5 w-3.5" /> Free Plan</span>
       </div>
       <div className="mt-6 flex items-center justify-between px-5">
         <h2 className="text-[16px] font-semibold">Your Saved Filters</h2>
-        <button aria-label="Save current filters" onClick={() => setNaming(true)} data-testid="save-filter" className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background transition hover:opacity-90"><Plus className="h-4 w-4" strokeWidth={3} /></button>
+        <button aria-label="Save current filters" onClick={() => setNaming(true)} data-testid="save-filter" className="focus-ring flex h-7 w-7 items-center justify-center rounded-full bg-foreground text-background transition hover:opacity-90"><Plus className="h-4 w-4" strokeWidth={3} /></button>
       </div>
       {naming && (
         <form className="mt-3 flex gap-2 px-5" onSubmit={(e) => { e.preventDefault(); save(); }}>
@@ -52,13 +52,13 @@ export function RightRail({ user, savedFilters, currentParams, activeId }: { use
           <li key={s.id} className={cn("group flex items-center gap-2 border-l-[3px] py-1 pl-3 pr-1", activeId === s.id ? "border-primary" : "border-primary/50 hover:border-primary")}>
             {editing === s.id ? (
               <form className="flex flex-1 gap-1" onSubmit={(e) => { e.preventDefault(); const v = new FormData(e.currentTarget).get("n") as string; start(async () => { await renameFilterAction(s.id, v); setEditing(null); }); }}>
-                <Input name="n" defaultValue={s.name} className="h-8" autoFocus /><button className="p-1" aria-label="Save name"><Check className="h-4 w-4" /></button><button type="button" className="p-1" aria-label="Cancel" onClick={() => setEditing(null)}><X className="h-4 w-4" /></button>
+                <Input name="n" defaultValue={s.name} className="h-8" autoFocus /><button className="focus-ring rounded-sm p-1" aria-label="Save name"><Check className="h-4 w-4" /></button><button type="button" className="focus-ring rounded-sm p-1" aria-label="Cancel" onClick={() => setEditing(null)}><X className="h-4 w-4" /></button>
               </form>
             ) : (
               <>
-                <button className="min-w-0 flex-1 text-left" onClick={() => router.push(`${path}?sf=${s.id}`)} data-testid="apply-saved-filter"><p className="truncate text-[15px]">{s.name}</p><p className="truncate text-xs text-muted-foreground">{describe(s.params)}</p></button>
-                <button aria-label="Rename" className="p-1 text-foreground/70 transition hover:text-foreground" onClick={() => setEditing(s.id)}><Pencil className="h-4 w-4" /></button>
-                <button aria-label="Delete" className="p-1 text-foreground/40 opacity-0 transition hover:text-destructive group-hover:opacity-100" onClick={() => start(async () => { await deleteFilterAction(s.id); if (activeId === s.id) router.push(path); })}><Trash2 className="h-4 w-4" /></button>
+                <button className="focus-ring min-w-0 flex-1 rounded-sm text-left" onClick={() => router.push(`${path}?sf=${s.id}`)} data-testid="apply-saved-filter"><p className="truncate text-[15px]">{s.name}</p><p className="truncate text-xs text-muted-foreground">{describe(s.params)}</p></button>
+                <button aria-label="Rename" className="focus-ring rounded-sm p-1 text-muted-strong transition hover:text-foreground" onClick={() => setEditing(s.id)}><Pencil className="h-4 w-4" /></button>
+                <button aria-label="Delete" className="focus-ring rounded-sm p-1 text-muted-strong opacity-0 transition hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100" onClick={() => start(async () => { await deleteFilterAction(s.id); if (activeId === s.id) router.push(path); })}><Trash2 className="h-4 w-4" /></button>
               </>
             )}
           </li>

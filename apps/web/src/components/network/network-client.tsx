@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { OutreachKind } from "@prisma/client";
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TagInput } from "@/components/profile/tag-input";
+import { ConfirmDialog } from "@/components/providers/confirm-dialog";
 import { saveContactAction, deleteContactAction, draftOutreachAction, markOutreachSentAction } from "@/app/actions/network";
 import { toast } from "sonner";
 
@@ -33,7 +34,7 @@ export function NetworkClient({ contacts, jobs, drafts, initialContactId, initia
       <div>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
           <div><h1 className="text-3xl">Network</h1><p className="mt-1 text-sm text-muted-foreground">Your own contacts only: a LinkedIn connections export or people you add by hand. We never scrape.</p></div>
-          <div className="flex gap-2"><ImportDialog onDone={() => router.refresh()} /><ContactDialog onSaved={() => router.refresh()} /></div>
+          <div className="flex gap-2"><ImportDialog onDone={() => router.refresh()} /><ContactDialog onSaved={() => router.refresh()} onDeleted={(id) => { if (selected === id) { setSelected(null); setDraft(null); } router.refresh(); }} /></div>
         </div>
         <Input placeholder="Search name, company, title…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-3 max-w-sm" data-testid="contact-search" />
         {contacts.length === 0 ? (
@@ -47,11 +48,12 @@ export function NetworkClient({ contacts, jobs, drafts, initialContactId, initia
                   <p className="text-xs text-muted-foreground">{[c.title, c.currentCompany].filter(Boolean).join(" · ")}{c.pastCompanies.length ? ` · formerly ${c.pastCompanies.join(", ")}` : ""}{c.schools.length ? ` · ${c.schools.join(", ")}` : ""}</p>
                 </div>
                 <div className="flex gap-1">
-                  <ContactDialog contact={c} onSaved={() => router.refresh()} />
+                  <ContactDialog contact={c} onSaved={() => router.refresh()} onDeleted={(id) => { if (selected === id) { setSelected(null); setDraft(null); } router.refresh(); }} />
                   <Button size="sm" variant={selected === c.id ? "default" : "outline"} onClick={() => { setSelected(c.id); setDraft(null); }} data-testid="select-contact">Reach out</Button>
                 </div>
               </li>
             ))}
+            {filtered.length === 0 && <li className="p-3 text-sm text-muted-foreground">No contacts match “{q}”.</li>}
           </ul>
         )}
         {drafts.length > 0 && (
@@ -91,32 +93,58 @@ export function NetworkClient({ contacts, jobs, drafts, initialContactId, initia
   );
 }
 
+interface ImportResult { inserted: number; updated: number; unchanged: number; skipped: number; total: number }
+
 function ImportDialog({ onDone }: { onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<string | null>(null);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  async function upload(file: File) {
+    setBusy(true); setError(null); setResult(null);
+    try {
+      const fd = new FormData(); fd.append("file", file);
+      const res = await fetch("/api/contacts/import", { method: "POST", body: fd });
+      const j = (await res.json().catch(() => ({}))) as Partial<ImportResult> & { error?: string };
+      if (!res.ok) { const msg = j.error ?? "Import failed"; setError(msg); toast.error(msg); return; }
+      const r: ImportResult = { inserted: j.inserted ?? 0, updated: j.updated ?? 0, unchanged: j.unchanged ?? 0, skipped: j.skipped ?? 0, total: j.total ?? 0 };
+      setResult(r);
+      if (r.inserted + r.updated === 0) toast.warning(r.total === 0 ? "That file has no contact rows." : "Nothing new: every contact in that file is already here.");
+      else toast.success(`Imported ${r.inserted} new contact${r.inserted === 1 ? "" : "s"}${r.updated ? `, updated ${r.updated}` : ""}`);
+      onDone();
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = ""; // picking the same file again re-fires onChange
+    }
+  }
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (o) { setResult(null); setError(null); } }}>
       <DialogTrigger asChild><Button variant="outline" data-testid="import-contacts">Import LinkedIn CSV</Button></DialogTrigger>
       <DialogContent>
-        <DialogHeader><DialogTitle>Import connections</DialogTitle></DialogHeader>
-        <p className="text-sm text-muted-foreground">Upload the <code>Connections.csv</code> from your LinkedIn data export. We store name, company, title, email and profile URL, nothing else.</p>
-        <Input type="file" accept=".csv,text/csv" data-testid="contacts-file" disabled={busy} onChange={async (e) => {
-          const f = e.target.files?.[0]; if (!f) return; setBusy(true);
-          const fd = new FormData(); fd.append("file", f);
-          const res = await fetch("/api/contacts/import", { method: "POST", body: fd });
-          setBusy(false);
-          if (!res.ok) { toast.error("Import failed"); return; }
-          const j = await res.json(); setResult(`Imported ${j.inserted} new, updated ${j.updated}.`); onDone();
-        }} />
-        {result && <p className="text-sm" data-testid="import-result">{result}</p>}
+        <DialogHeader>
+          <DialogTitle>Import connections</DialogTitle>
+          <DialogDescription>Upload the <code>Connections.csv</code> from your LinkedIn data export (columns First Name, Last Name, Company, Position). We store name, company, title, email and profile URL, nothing else.</DialogDescription>
+        </DialogHeader>
+        <Input ref={inputRef} type="file" accept=".csv,text/csv" data-testid="contacts-file" disabled={busy} aria-invalid={error ? true : undefined} onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
+        {busy && <p className="text-sm text-muted-foreground">Importing…</p>}
+        {error && <p className="text-sm text-destructive" role="alert" data-testid="import-error">{error}</p>}
+        {result && (
+          <p className="text-sm" data-testid="import-result">
+            Imported {result.inserted} new, updated {result.updated}.{result.unchanged ? ` ${result.unchanged} already up to date.` : ""}{result.skipped ? ` Skipped ${result.skipped} row${result.skipped === 1 ? "" : "s"} without a name.` : ""}
+          </p>
+        )}
+        <DialogFooter>
+          <Button type="button" variant={result ? "default" : "outline"} onClick={() => setOpen(false)} data-testid="import-done">{result ? "Done" : "Cancel"}</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
 
-function ContactDialog({ contact, onSaved }: { contact?: ContactRow; onSaved: () => void }) {
+function ContactDialog({ contact, onSaved, onDeleted }: { contact?: ContactRow; onSaved: () => void; onDeleted: (id: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [c, setC] = useState<ContactRow>(contact ?? { id: "", firstName: "", lastName: "", email: null, currentCompany: null, title: null, schools: [], pastCompanies: [], linkedinUrl: null, notes: null, source: "MANUAL" });
   const [pending, start] = useTransition();
   const set = (k: keyof ContactRow, v: unknown) => setC((x) => ({ ...x, [k]: v }));
@@ -136,10 +164,14 @@ function ContactDialog({ contact, onSaved }: { contact?: ContactRow; onSaved: ()
           <div className="sm:col-span-2"><Label>Schools</Label><div className="mt-1"><TagInput value={c.schools} onChange={(v) => set("schools", v)} placeholder="School, Enter" testId="contact-schools" /></div></div>
           <div className="sm:col-span-2"><Label>Notes</Label><Textarea className="mt-1" rows={2} value={c.notes ?? ""} onChange={(e) => set("notes", e.target.value || null)} /></div>
           <div className="flex justify-between sm:col-span-2">
-            {contact ? <Button type="button" variant="ghost" className="text-destructive" onClick={() => start(async () => { await deleteContactAction(contact.id); setOpen(false); onSaved(); })}>Delete</Button> : <span />}
+            {contact ? <Button type="button" variant="ghost" className="text-destructive" disabled={pending} onClick={() => setConfirmDelete(true)} data-testid="delete-contact">Delete</Button> : <span />}
             <Button type="submit" disabled={pending} data-testid="save-contact">Save</Button>
           </div>
         </form>
+        {contact && (
+          <ConfirmDialog open={confirmDelete} onOpenChange={setConfirmDelete} title="Delete this contact?" description={`${contact.firstName} ${contact.lastName} and any outreach drafts to them are removed. This cannot be undone.`} confirmLabel="Delete"
+            onConfirm={async () => { const r = await deleteContactAction(contact.id); if (!r.ok) { toast.error(r.error); return; } toast.success("Contact deleted"); setOpen(false); onDeleted(contact.id); }} />
+        )}
       </DialogContent>
     </Dialog>
   );

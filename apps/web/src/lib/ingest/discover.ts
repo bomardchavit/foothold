@@ -16,8 +16,12 @@ const PATTERNS: Array<{ kind: JobSourceKind; rx: RegExp; slug: (m: RegExpMatchAr
   { kind: "WORKABLE", rx: /https?:\/\/([\w-]+)\.workable\.com/gi, slug: (m) => m[1], url: (m) => `https://apply.workable.com/${m[1]}` },
 ];
 const CAREERS_LINK = /career|jobs|join[-_ ]?us|work[-_ ]?with|open[-_ ]?positions|hiring|opportunities/i;
-const SKIP_SLUGS = new Set(["www", "app", "api", "jobs", "careers", "boards", "apply", "static", "embed", "wday", "en-us"]);
+const ATS_LINK_HOSTS = /(^|\.)(greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|smartrecruiters\.com|workable\.com|jobvite\.com|icims\.com|bamboohr\.com|rippling\.com)$/i;
+const SKIP_SLUGS = new Set(["www", "app", "api", "jobs", "careers", "boards", "apply", "static", "embed", "wday", "en-us", "myworkdayjobs", "wd1", "wd2", "wd3", "wd4", "wd5", "wd10", "wd12", "wd103", "wd104", "wd105", "wd108"]);
+const MAX_PROBES = 8;
 
+const registrable = (host: string) => host.replace(/^www\./, "").split(".").slice(-2).join(".");
+/** Careers-page candidates: anchors on the site itself or on a known ATS host, so marketing links elsewhere are ignored. */
 function links(html: string, base: URL): string[] {
   const out = new Set<string>();
   const rx = /<a[^>]+href\s*=\s*["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi;
@@ -25,14 +29,16 @@ function links(html: string, base: URL): string[] {
   while ((m = rx.exec(html))) {
     try {
       const u = new URL(decodeEntities(m[1]), base);
+      if (!/^https?:$/.test(u.protocol)) continue;
+      if (registrable(u.hostname) !== registrable(base.hostname) && !ATS_LINK_HOSTS.test(u.hostname)) continue;
       const text = m[2].replace(/<[^>]+>/g, " ");
-      if (CAREERS_LINK.test(u.pathname + " " + text) && /^https?:$/.test(u.protocol)) out.add(u.href.split("#")[0]);
+      if (CAREERS_LINK.test(u.pathname + " " + text)) out.add(u.href.split("#")[0]);
     } catch { /* ignore */ }
   }
   return [...out].slice(0, 6);
 }
 
-/** Public ATS APIs answer 200 for a real board: probe them with slugs derived from the domain (one request per ATS). */
+/** Public ATS APIs answer 200 for a real board: probe them with slugs derived from the domain, first hit per ATS wins, at most MAX_PROBES requests. */
 async function probeAts(slugs: string[], companyName: string): Promise<DiscoveredSource[]> {
   const out: DiscoveredSource[] = [];
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -44,12 +50,17 @@ async function probeAts(slugs: string[], companyName: string): Promise<Discovere
     { kind: "WORKABLE", url: (s) => `https://www.workable.com/api/accounts/${s}`, check: (j) => (j && typeof j === "object" && "jobs" in j && Array.isArray((j as { jobs: unknown[] }).jobs) && (j as { jobs: unknown[] }).jobs.length > 0 && (j as { name?: string }).name && nameOk((j as { name?: string }).name) ? "workable" : false) },
     { kind: "SMARTRECRUITERS", url: (s) => `https://api.smartrecruiters.com/v1/companies/${s}/postings?limit=1`, check: (j) => (j && typeof j === "object" && "totalFound" in j && Number((j as { totalFound: number }).totalFound) > 0 ? "smartrecruiters" : false) },
   ];
+  const hit = new Set<JobSourceKind>();
+  let probed = 0;
   for (const slug of slugs) for (const p of probes) {
+    if (hit.has(p.kind)) continue;
+    if (probed >= MAX_PROBES) return out;
+    probed++;
     try {
       const res = await politeFetch(p.url(slug), { skipRobots: true, retries: 0, timeoutMs: 12_000 });
       if (!res.ok) continue;
       const ok = p.check(await res.json().catch(() => null));
-      if (ok) out.push({ kind: p.kind, slug, name: companyName, url: p.url(slug), evidence: `public ${p.kind.toLowerCase()} API answered for slug "${slug}"` });
+      if (ok) { hit.add(p.kind); out.push({ kind: p.kind, slug, name: companyName, url: p.url(slug), evidence: `public ${p.kind.toLowerCase()} API answered for slug "${slug}"` }); }
     } catch { /* not on this ATS */ }
   }
   return out;
@@ -64,7 +75,7 @@ export async function discoverSources(input: string): Promise<{ name: string; fo
   const scan = (html: string, url: string) => {
     for (const p of PATTERNS) for (const m of html.matchAll(p.rx)) {
       const slug = p.slug(m);
-      if (SKIP_SLUGS.has(slug.toLowerCase())) continue;
+      if (SKIP_SLUGS.has(slug.toLowerCase()) || SKIP_SLUGS.has(slug.toLowerCase().split(/[./]/)[0])) continue;
       const key = `${p.kind}:${slug}`;
       if (!found.has(key)) found.set(key, { kind: p.kind, slug, name: name.charAt(0).toUpperCase() + name.slice(1), url: p.url(m), evidence: url });
     }

@@ -16,6 +16,9 @@ export async function POST(req: Request) {
   const body = Body.safeParse(await req.json().catch(() => null));
   if (!body.success) return json({ error: "Bad request" }, 400);
   const { url, title, company, ats, status } = body.data;
+  // A résumé may only be recorded against an application by the user who owns it.
+  const resumeDocumentId = body.data.resumeDocumentId ?? null;
+  if (resumeDocumentId && (await prisma.resumeDocument.count({ where: { id: resumeDocumentId, userId: user.id } })) !== 1) return json({ error: "Résumé not found" }, 400);
   const u = new URL(url);
   const base = `${u.origin}${u.pathname}`.replace(/\/(apply|application)\/?$/, "");
   let job = await prisma.job.findFirst({ where: { OR: [{ applyUrl: { startsWith: base } }, { applyUrl: { startsWith: url.split("?")[0] } }] } });
@@ -29,8 +32,8 @@ export async function POST(req: Request) {
   }
   const existing = await prisma.application.findUnique({ where: { userId_jobId: { userId: user.id, jobId: job.id } } });
   const app = existing
-    ? await prisma.application.update({ where: { id: existing.id }, data: { status, resumeDocumentId: body.data.resumeDocumentId ?? existing.resumeDocumentId, appliedAt: status === "APPLIED" && !existing.appliedAt ? new Date() : undefined, source: "EXTENSION", events: existing.status !== status ? { create: { fromStatus: existing.status, toStatus: status } } : undefined } })
-    : await prisma.application.create({ data: { userId: user.id, jobId: job.id, status, resumeDocumentId: body.data.resumeDocumentId ?? null, appliedAt: status === "APPLIED" ? new Date() : null, source: "EXTENSION", events: { create: { toStatus: status } } } });
+    ? await prisma.application.update({ where: { id: existing.id }, data: { status, resumeDocumentId: resumeDocumentId ?? existing.resumeDocumentId, appliedAt: status === "APPLIED" && !existing.appliedAt ? new Date() : undefined, source: "EXTENSION", events: existing.status !== status ? { create: { fromStatus: existing.status, toStatus: status } } : undefined } })
+    : await prisma.application.create({ data: { userId: user.id, jobId: job.id, status, resumeDocumentId, appliedAt: status === "APPLIED" ? new Date() : null, source: "EXTENSION", events: { create: { toStatus: status } } } });
   track(user.id, EVENTS.application_status_changed, { applicationId: app.id, jobId: job.id, from: existing?.status ?? null, to: status, source: "extension" });
   if (body.data.filled != null) track(user.id, EVENTS.extension_autofill_used, { ats, filled: body.data.filled });
   return json({ applicationId: app.id, jobId: job.id, status: app.status });

@@ -1,7 +1,7 @@
-import { expandImplied } from "./skills";
+import { expandImplied, isTechnicalSkill, skillCategory, skillWeight } from "./skills";
 import { industriesAdjacent } from "./industries";
 import { parseLocation, sameCity, type ParsedLocation } from "./location";
-import { SENIORITY_LABELS, SENIORITY_RUNG, type SeniorityKey } from "./seniority";
+import { SENIORITY_LABELS, SENIORITY_RUNG, isManagementLevel, type SeniorityKey, type EmploymentTypeKey } from "./seniority";
 
 export type RemotePrefKey = "REMOTE" | "HYBRID" | "ONSITE" | "ANY";
 export type ComponentKey = "skills" | "semantic" | "seniority" | "years" | "industry" | "location";
@@ -24,6 +24,9 @@ export interface ScoreJobInput {
   yearsMin: number | null;
   yearsMax: number | null;
   industry: string | null;
+  /** "known" when the industry comes from a curated employer list or the source; "inferred" for keyword guesses from the posting text. */
+  industryConfidence?: "known" | "inferred";
+  employmentType?: EmploymentTypeKey;
   isRemote: boolean;
   location: string | null;
   city: string | null;
@@ -47,6 +50,8 @@ export interface MatchBreakdown {
   missingRequired: string[];
   missingPreferred: string[];
   impliedMatches: Array<{ required: string; via: string }>;
+  /** Multipliers applied to the weighted sum (role fit, internship mismatch), with the reason shown to the user. */
+  adjustments?: Array<{ key: "roleFit" | "employmentType"; factor: number; reason: string }>;
 }
 
 export const WEIGHTS: Record<ComponentKey, number> = { skills: 0.35, semantic: 0.2, seniority: 0.15, years: 0.1, industry: 0.1, location: 0.1 };
@@ -58,8 +63,14 @@ export const COMPONENT_LABELS: Record<ComponentKey, string> = {
 export const SEMANTIC_CALIBRATION: Record<string, { lo: number; hi: number }> = {
   voyage: { lo: 0.4, hi: 0.8 },
   openai: { lo: 0.25, hi: 0.7 },
-  local: { lo: 0.08, hi: 0.6 },
+  // the hashed local embedding clusters real postings at 0.03–0.20, so the window is narrow
+  local: { lo: 0.05, hi: 0.35 },
 };
+
+/** How much of the raw score survives when the title does not match any target role at all (0.55 → a 70 becomes ~39). */
+export const ROLE_FIT_FLOOR = 0.55;
+/** Ceiling for an internship when the candidate is not looking for one (and vice versa). */
+export const EMPLOYMENT_MISMATCH_CAP = 40;
 
 const clamp = (n: number, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 const r = (n: number) => Math.round(n);
@@ -74,26 +85,49 @@ function skillsComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
   const missingPreferred: string[] = [];
   const req = [...new Set(job.requiredSkills)];
   const pref = [...new Set(job.preferredSkills)].filter((p) => !req.includes(p));
-  let reqHit = 0, prefHit = 0;
+  // Skills are weighted by kind: a language or tool counts fully, a domain word ("Government", "SaaS") counts 0.4.
+  let reqHit = 0, reqTotal = 0, prefHit = 0, prefTotal = 0;
+  const reqLanguages = req.filter((s) => skillCategory(s) === "LANGUAGE");
+  let langMatched = 0;
   for (const s of req) {
     const k = s.toLowerCase();
-    if (have.has(k)) { reqHit++; matched.push(s); }
-    else if (impliedLower.has(k)) { reqHit++; matched.push(s); impliedMatches.push({ required: s, via: viaSkill(profile.skills, s) }); }
+    const isLang = reqLanguages.length >= 2 && skillCategory(s) === "LANGUAGE";
+    const w = isLang ? 0 : skillWeight(s);
+    reqTotal += w;
+    if (have.has(k)) { reqHit += w; matched.push(s); if (isLang) langMatched++; }
+    else if (impliedLower.has(k)) { reqHit += w; matched.push(s); if (isLang) langMatched++; impliedMatches.push({ required: s, via: viaSkill(profile.skills, s) }); }
     else missingRequired.push(s);
+  }
+  // Postings list languages as alternatives ("Go, Java, or C++"): knowing one of them satisfies most of the ask.
+  if (reqLanguages.length >= 2) {
+    const groupWeight = Math.min(reqLanguages.length, 2);
+    reqTotal += groupWeight;
+    reqHit += (langMatched >= 1 ? Math.max(langMatched / reqLanguages.length, 0.7) : 0) * groupWeight;
   }
   for (const s of pref) {
     const k = s.toLowerCase();
-    if (have.has(k) || impliedLower.has(k)) { prefHit++; matched.push(s); }
+    const w = skillWeight(s);
+    prefTotal += w;
+    if (have.has(k) || impliedLower.has(k)) { prefHit += w; matched.push(s); }
     else missingPreferred.push(s);
   }
+  // report the costly gaps first
+  missingRequired.sort((a, b) => skillWeight(b) - skillWeight(a));
+  missingPreferred.sort((a, b) => skillWeight(b) - skillWeight(a));
   let score: number; let status: ComponentStatus = "scored";
   const evidence: string[] = [];
-  if (req.length === 0 && pref.length === 0) { score = 50; status = "unknown"; evidence.push("The posting lists no identifiable skills."); }
-  else if (req.length === 0) { score = (prefHit / pref.length) * 100; evidence.push(`${prefHit} of ${pref.length} preferred skills.`); }
-  else if (pref.length === 0) { score = (reqHit / req.length) * 100; evidence.push(`${reqHit} of ${req.length} required skills.`); }
-  else { score = (0.75 * reqHit / req.length + 0.25 * prefHit / pref.length) * 100; evidence.push(`${reqHit} of ${req.length} required, ${prefHit} of ${pref.length} preferred.`); }
+  const reqRatio = reqTotal > 0 ? reqHit / reqTotal : 0;
+  const prefRatio = prefTotal > 0 ? prefHit / prefTotal : 0;
+  const reqCount = req.filter((s) => have.has(s.toLowerCase()) || impliedLower.has(s.toLowerCase())).length;
+  const prefCount = pref.filter((s) => have.has(s.toLowerCase()) || impliedLower.has(s.toLowerCase())).length;
+  if (req.length === 0 && pref.length === 0) { score = 40; status = "unknown"; evidence.push("The posting lists no identifiable skills, so this component is a placeholder."); }
+  else if (req.length === 0) { score = prefRatio * 100; evidence.push(`${prefCount} of ${pref.length} preferred skills.`); }
+  else if (pref.length === 0) { score = reqRatio * 100; evidence.push(`${reqCount} of ${req.length} required skills.`); }
+  else { score = (0.75 * reqRatio + 0.25 * prefRatio) * 100; evidence.push(`${reqCount} of ${req.length} required, ${prefCount} of ${pref.length} preferred.`); }
   if (status === "scored" && req.length + pref.length < 3) { score *= 0.75; evidence.push("The posting names only a couple of skills, so this component counts for less."); }
+  if (status === "scored" && ![...req, ...pref].some(isTechnicalSkill)) { score = 0.5 * score + 0.5 * 40; evidence.push("The posting names no specific technologies, only domain areas, so this is weak evidence either way."); }
   if (matched.length) evidence.push(`You have: ${matched.slice(0, 8).join(", ")}${matched.length > 8 ? ` +${matched.length - 8} more` : ""}.`);
+  if (reqLanguages.length >= 2 && langMatched >= 1 && langMatched < reqLanguages.length) evidence.push(`The posting lists ${reqLanguages.length} languages; you have ${langMatched}, which usually satisfies the ask.`);
   if (missingRequired.length) evidence.push(`Missing required: ${missingRequired.slice(0, 8).join(", ")}${missingRequired.length > 8 ? ` +${missingRequired.length - 8} more` : ""}.`);
   if (missingPreferred.length) evidence.push(`Missing preferred: ${missingPreferred.slice(0, 6).join(", ")}${missingPreferred.length > 6 ? ` +${missingPreferred.length - 6} more` : ""}.`);
   for (const im of impliedMatches.slice(0, 4)) evidence.push(`${im.required} counted via your ${im.via}.`);
@@ -105,9 +139,19 @@ function viaSkill(profileSkills: string[], target: string): string {
   return profileSkills[0] ?? "profile";
 }
 
-const ROLE_STOP = new Set(["senior", "sr", "junior", "jr", "staff", "principal", "lead", "associate", "intern", "ii", "iii", "iv", "i", "of", "and", "the", "a", "an", "to", "for", "in", "at", "with", "new", "grad", "level", "remote", "us", "usa"]);
+const ROLE_STOP = new Set(["senior", "sr", "junior", "jr", "staff", "principal", "lead", "associate", "intern", "ii", "iii", "iv", "i", "of", "and", "the", "a", "an", "to", "for", "in", "at", "with", "new", "grad", "level", "remote", "us", "usa", "hybrid"]);
 const ROLE_SYNONYMS: Record<string, string> = { developer: "engineer", programmer: "engineer", engineering: "engineer", swe: "engineer", sde: "engineer", frontend: "front-end", backend: "back-end", fullstack: "full-stack", ml: "machine-learning", "machine": "machine-learning", learning: "machine-learning", pm: "product", mgr: "manager", management: "manager" };
-const roleTokens = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9+#\-\s]/g, " ").split(/[\s,/]+/).filter((t) => t && !ROLE_STOP.has(t)).map((t) => ROLE_SYNONYMS[t] ?? t));
+/** Whole-phrase rewrites applied before tokenizing, for titles that name the role indirectly. */
+const ROLE_PHRASES: Array<[RegExp, string]> = [
+  [/\bmember of technical staff\b|\bmts\b/g, "software engineer"],
+  [/\bsoftware development engineer\b/g, "software engineer"],
+  [/\bsoftware developer\b/g, "software engineer"],
+];
+const roleTokens = (s: string) => {
+  let t = s.toLowerCase();
+  for (const [rx, rep] of ROLE_PHRASES) t = t.replace(rx, rep);
+  return new Set(t.replace(/[^a-z0-9+#\-\s]/g, " ").split(/[\s,/]+/).filter((x) => x && !ROLE_STOP.has(x)).map((x) => ROLE_SYNONYMS[x] ?? x));
+};
 
 /** How well the job title matches any of the candidate's target roles (0..1). */
 export function roleFit(targetRoles: string[] | undefined, title: string | undefined): number | null {
@@ -144,6 +188,13 @@ function seniorityComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
   const a = SENIORITY_RUNG[profile.seniority], b = SENIORITY_RUNG[job.seniority];
   if (a == null) return { score: 0, status: "na" as ComponentStatus, evidence: ["You have not set a target seniority."] };
   if (b == null) return { score: 50, status: "unknown" as ComponentStatus, evidence: ["The posting does not state a level."] };
+  const jobMgmt = isManagementLevel(job.seniority), youMgmt = isManagementLevel(profile.seniority);
+  if (jobMgmt !== youMgmt) {
+    return {
+      score: 25, status: "scored" as ComponentStatus,
+      evidence: [jobMgmt ? `People-management role (${SENIORITY_LABELS[job.seniority]}); you are targeting an individual-contributor level (${SENIORITY_LABELS[profile.seniority]}).` : `Individual-contributor role (${SENIORITY_LABELS[job.seniority]}); you are targeting a people-management level (${SENIORITY_LABELS[profile.seniority]}).`],
+    };
+  }
   const d = Math.abs(a - b);
   const score = d <= 0.5 ? 100 : d <= 1.5 ? 70 : d <= 2.5 ? 35 : 0;
   const rel = b > a ? "above" : b < a ? "below" : "at";
@@ -166,9 +217,12 @@ function yearsComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
 function industryComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
   if (!profile.industries.length) return { score: 0, status: "na" as ComponentStatus, evidence: ["You are open to any industry."] };
   if (!job.industry) return { score: 50, status: "unknown" as ComponentStatus, evidence: ["Company industry is unknown."] };
-  if (profile.industries.some((i) => i.toLowerCase() === job.industry!.toLowerCase())) return { score: 100, status: "scored" as ComponentStatus, evidence: [`${job.industry} is one of your chosen industries.`] };
-  if (profile.industries.some((i) => industriesAdjacent(i, job.industry!))) return { score: 50, status: "scored" as ComponentStatus, evidence: [`${job.industry} is adjacent to your chosen industries.`] };
-  return { score: 20, status: "scored" as ComponentStatus, evidence: [`${job.industry} is outside your chosen industries (${profile.industries.join(", ")}).`] };
+  const inferred = job.industryConfidence === "inferred";
+  const note = inferred ? " (guessed from the posting text)" : "";
+  if (profile.industries.some((i) => i.toLowerCase() === job.industry!.toLowerCase())) return { score: 100, status: "scored" as ComponentStatus, evidence: [`${job.industry} is one of your chosen industries${note}.`] };
+  if (profile.industries.some((i) => industriesAdjacent(i, job.industry!))) return { score: 50, status: "scored" as ComponentStatus, evidence: [`${job.industry} is adjacent to your chosen industries${note}.`] };
+  // a keyword guess that disagrees with your industries is weak evidence, so it costs less than a confirmed mismatch
+  return { score: inferred ? 40 : 20, status: "scored" as ComponentStatus, evidence: [`${job.industry} is outside your chosen industries (${profile.industries.join(", ")})${note}.`] };
 }
 
 function locationComponent(profile: ScoreProfileInput, job: ScoreJobInput) {
@@ -212,8 +266,22 @@ export function scoreMatch(profile: ScoreProfileInput, job: ScoreJobInput, seman
     const weight = p.status === "na" ? 0 : WEIGHTS[key] / weightSum;
     return { key, label: COMPONENT_LABELS[key], weight: Number(weight.toFixed(3)), score: p.score, status: p.status, contribution: Number((p.score * weight).toFixed(1)), evidence: p.evidence };
   });
-  const total = r(clamp(components.reduce((s, c) => s + c.score * c.weight, 0)));
-  return { total, components, matchedSkills: sk.matched, missingRequired: sk.missingRequired, missingPreferred: sk.missingPreferred, impliedMatches: sk.impliedMatches };
+  let total = clamp(components.reduce((s, c) => s + c.score * c.weight, 0));
+  const adjustments: NonNullable<MatchBreakdown["adjustments"]> = [];
+  // The kind of job matters more than any single component: a perfect analyst posting is still not an engineering job.
+  const rf = roleFit(profile.targetRoles, job.title);
+  if (rf != null && rf < 0.99) {
+    const factor = ROLE_FIT_FLOOR + (1 - ROLE_FIT_FLOOR) * rf;
+    total *= factor;
+    adjustments.push({ key: "roleFit", factor: Number(factor.toFixed(2)), reason: rf > 0 ? `The title only partly matches your target roles (${Math.round(rf * 100)}%), so the score is scaled to ${Math.round(factor * 100)}%.` : `The title does not match any of your target roles, so the score is scaled to ${Math.round(factor * 100)}%.` });
+  }
+  const wantsIntern = profile.seniority === "INTERN";
+  const isIntern = job.employmentType === "INTERNSHIP";
+  if (job.employmentType && job.employmentType !== "UNKNOWN" && wantsIntern !== isIntern && total > EMPLOYMENT_MISMATCH_CAP) {
+    adjustments.push({ key: "employmentType", factor: Number((EMPLOYMENT_MISMATCH_CAP / total).toFixed(2)), reason: isIntern ? `This is an internship and you are targeting ${SENIORITY_LABELS[profile.seniority]} roles, so the score is capped at ${EMPLOYMENT_MISMATCH_CAP}.` : `You are targeting internships and this is not one, so the score is capped at ${EMPLOYMENT_MISMATCH_CAP}.` });
+    total = EMPLOYMENT_MISMATCH_CAP;
+  }
+  return { total: r(clamp(total)), components, matchedSkills: sk.matched, missingRequired: sk.missingRequired, missingPreferred: sk.missingPreferred, impliedMatches: sk.impliedMatches, adjustments: adjustments.length ? adjustments : undefined };
 }
 
 // ---- years of experience from date ranges

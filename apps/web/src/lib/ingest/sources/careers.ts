@@ -4,7 +4,7 @@ import type { SourceAdapter } from "./index";
 import { politeText, politeFetch, RobotsDisallowed } from "../crawl/fetcher";
 import { isAllowed, sitemapsFor } from "../crawl/robots";
 import { extractJobPostings } from "../crawl/jsonld";
-import { renderPage } from "../crawl/render";
+import { renderBudget } from "../crawl/render";
 
 const JOB_LINK = /(?:^|\/)(?:jobs?|careers?|positions?|openings?|vacanc(?:y|ies)|roles?|opportunit(?:y|ies)|job-?openings?|apply)(?:[\/?#-]|$)/i;
 const MAX_LINKS = Number(process.env.SCRAPER_MAX_PAGES ?? 150);
@@ -45,9 +45,22 @@ async function sitemapJobUrls(origin: string): Promise<string[]> {
   return [...urls];
 }
 
-function looksJsRendered(html: string): boolean {
+export function looksJsRendered(html: string): boolean {
   const text = stripHtml(html);
   return text.length < 600 || (/__NEXT_DATA__|data-reactroot|ng-version|id="app"|id="root"/.test(html) && text.length < 1500);
+}
+
+const HUB = /\/(?:jobs?|careers?|openings?|positions?|search|opportunities|vacancies)\/?(?:search\/?)?$/i;
+const GUESSED_HUBS = ["/jobs", "/jobs/search", "/careers/jobs", "/careers/openings", "/careers/search"];
+/**
+ * Listing hubs (/jobs, /careers/openings …) usually hold the real posting links: up to five the site links to itself.
+ * Conventional paths are guessed only when the start page linked to no job page at all.
+ */
+export function selectHubs(candidates: Iterable<string>, start: URL, startPageJobLinks: number): string[] {
+  const hubs: string[] = [];
+  for (const l of candidates) { try { if (HUB.test(new URL(l).pathname) && !hubs.includes(l)) hubs.push(l); } catch { /* ignore */ } if (hubs.length >= 5) break; }
+  if (startPageJobLinks === 0) for (const path of GUESSED_HUBS) { const guess = `${start.origin}${path}`; if (!hubs.includes(guess) && hubs.length < 8) hubs.push(guess); }
+  return hubs;
 }
 
 /** Last-resort extraction for pages without JSON-LD: needs a job-looking title and a real description. */
@@ -71,24 +84,23 @@ export const careers: SourceAdapter = {
     const start = new URL(/^https?:\/\//i.test(slug) ? slug : `https://${slug}`);
     if (!(await isAllowed(start))) throw new RobotsDisallowed(start.href);
     const company = name || start.hostname.replace(/^www\./, "").split(".")[0];
+    const renders = renderBudget();
     let html = await politeText(start.href);
-    if (looksJsRendered(html)) html = (await renderPage(start.href)) ?? html;
+    if (looksJsRendered(html)) html = (await renders.render(start.href)) ?? html;
     const jobs: NormalizedJob[] = [];
     const seen = new Set<string>();
     const push = (list: NormalizedJob[]) => { for (const j of list) if (!seen.has(j.externalId)) { seen.add(j.externalId); jobs.push(j); } };
     push(extractJobPostings(html, start.href, company));
-    const candidates = new Set<string>([...absoluteLinks(html, start), ...(await sitemapJobUrls(start.origin))]);
-    // Listing hubs (/jobs, /jobs/search, /careers/openings …) usually hold the real posting links; expand a few of them.
-    const HUB = /\/(?:jobs?|careers?|openings?|positions?|search|opportunities|vacancies)\/?(?:search\/?)?$/i;
-    const hubs = [...candidates].filter((l) => HUB.test(new URL(l).pathname)).slice(0, 5);
-    for (const guess of [`${start.origin}/jobs`, `${start.origin}/jobs/search`, `${start.origin}/careers/jobs`, `${start.origin}/careers/openings`, `${start.origin}/careers/search`]) if (!hubs.includes(guess) && hubs.length < 8) hubs.push(guess);
+    const startLinks = absoluteLinks(html, start);
+    const candidates = new Set<string>([...startLinks, ...(await sitemapJobUrls(start.origin))]);
+    const hubs = selectHubs(candidates, start, startLinks.length);
     for (const hub of hubs) {
       try {
         if (!(await isAllowed(hub))) continue;
         const res = await politeFetch(hub);
         if (!res.ok) continue;
         let page = await res.text();
-        if (looksJsRendered(page) || absoluteLinks(page, new URL(hub)).length < 3) page = (await renderPage(hub)) ?? page;
+        if (looksJsRendered(page) || absoluteLinks(page, new URL(hub)).length < 3) page = (await renders.render(hub)) ?? page;
         push(extractJobPostings(page, hub, company));
         for (const l of absoluteLinks(page, new URL(hub))) candidates.add(l);
       } catch { /* skip hub */ }
@@ -101,7 +113,7 @@ export const careers: SourceAdapter = {
         if (!(await isAllowed(link))) continue;
         let page = await politeText(link);
         let found = extractJobPostings(page, link, company);
-        if (!found.length && looksJsRendered(page)) { const rendered = await renderPage(link); if (rendered) { page = rendered; found = extractJobPostings(page, link, company); } }
+        if (!found.length && looksJsRendered(page)) { const rendered = await renders.render(link); if (rendered) { page = rendered; found = extractJobPostings(page, link, company); } }
         if (!found.length) { const fb = fallbackFromHtml(page, link, company); if (fb) found = [fb]; }
         push(found);
       } catch (e) { errors.push(`${link}: ${e instanceof Error ? e.message : String(e)}`); }

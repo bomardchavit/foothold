@@ -1,10 +1,10 @@
-import { JobParsedSchema, canonicalizeSkill, type JobParsed } from "@foothold/shared";
+import { JobParsedSchema, canonicalizeSkill, stripEmployerSkills, type JobParsed } from "@foothold/shared";
 import { llmMode, structured } from "../client";
 import { env } from "../../env";
-import { parseJobHeuristic } from "./parseJob.heuristic";
+import { parseJobHeuristic, type ParseJobInput } from "./parseJob.heuristic";
 
 const SYSTEM = `You extract structured hiring requirements from a job posting. Be literal: only list skills the posting actually names.
-- requiredSkills: technologies, tools, methods, or domain skills the posting requires (short canonical names, e.g. "React", "PostgreSQL", "A/B Testing"). Skip soft skills.
+- requiredSkills: technologies, tools, methods, or domain skills the posting requires (short canonical names, e.g. "React", "PostgreSQL", "A/B Testing"). Skip soft skills. Never list the hiring company's own name or product as a skill.
 - preferredSkills: items marked nice-to-have, preferred, bonus, or plus.
 - yearsMin/yearsMax: years of experience requested, null if not stated.
 - seniority: one of INTERN, ENTRY, MID, SENIOR, STAFF, PRINCIPAL, MANAGER, DIRECTOR, EXECUTIVE, UNKNOWN.
@@ -13,16 +13,16 @@ const SYSTEM = `You extract structured hiring requirements from a job posting. B
 - salary: numeric annual (or hourly with salaryPeriod="hour") range if stated, else null.
 - industry: the employer's industry in a few words, or null.`;
 
-export async function parseJob(input: { title: string; description: string; location?: string | null; userId?: string | null }): Promise<{ parsed: JobParsed; mode: string }> {
+export async function parseJob(input: ParseJobInput & { userId?: string | null }): Promise<{ parsed: JobParsed; mode: string }> {
   const heuristic = parseJobHeuristic(input);
   if (llmMode() === "heuristic") return { parsed: heuristic, mode: "heuristic" };
   try {
     const out = await structured({
       task: "parseJob", schema: JobParsedSchema, system: SYSTEM, model: env.modelBulk, maxTokens: 4000, userId: input.userId,
-      user: `Title: ${input.title}\nLocation: ${input.location ?? "n/a"}\n\n<posting>\n${input.description.slice(0, 30000)}\n</posting>`,
+      user: `Title: ${input.title}\nCompany: ${input.company ?? "n/a"}\nLocation: ${input.location ?? "n/a"}\n\n<posting>\n${input.description.slice(0, 30000)}\n</posting>`,
     });
-    const req = [...new Set(out.requiredSkills.map(canonicalizeSkill))];
-    const pref = [...new Set(out.preferredSkills.map(canonicalizeSkill))].filter((s) => !req.includes(s));
+    const req = stripEmployerSkills([...new Set(out.requiredSkills.map(canonicalizeSkill))], input.company);
+    const pref = stripEmployerSkills([...new Set(out.preferredSkills.map(canonicalizeSkill))], input.company).filter((s) => !req.includes(s));
     return {
       parsed: {
         ...out,

@@ -1,5 +1,4 @@
-import { requireUser } from "@/lib/session";
-import { ensureProfile } from "@/lib/profile/service";
+import { requireOnboarded } from "@/lib/session";
 import { profileToPreferences } from "@/lib/profile/forms";
 import { PreferencesForm } from "@/components/onboarding/preferences-form";
 import { AccountPanel } from "@/components/settings/account-panel";
@@ -10,8 +9,8 @@ export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const user = await requireUser();
-  const profile = await ensureProfile(user.id);
+  // Settings are for finished profiles; a user mid-onboarding is sent back to the guided flow.
+  const { user, profile } = await requireOnboarded();
   return (
     <div className="space-y-10">
       <section>
@@ -19,7 +18,7 @@ export default async function SettingsPage() {
         <p className="mb-4 text-sm text-muted-foreground">Saving recomputes your matches.</p>
         <PreferencesForm initial={profileToPreferences(profile)} />
       </section>
-      <AccountPanel email={user.email} llmMode={llmMode()} embeddings={embeddingProvider()} onboarded={Boolean(profile.onboardingCompletedAt)} />
+      <AccountPanel email={user.email} llmMode={llmMode()} embeddings={embeddingProvider()} onboarded />
     </div>
   );
 }

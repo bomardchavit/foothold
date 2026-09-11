@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { formatDistanceToNowStrict, format } from "date-fns";
 import type { ApplicationStatus } from "@prisma/client";
@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { setStatusAction, addNoteAction, deleteApplicationAction } from "@/app/actions/tracker";
+import { ConfirmDialog } from "@/components/providers/confirm-dialog";
+import { setStatusAction, attachResumeAction, addNoteAction, deleteApplicationAction, saveJobAction } from "@/app/actions/tracker";
+import { APPLICATION_STATUSES, APPLICATION_STATUS_LABELS } from "@/lib/tracker/status";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -15,22 +17,64 @@ export interface BoardApplication {
   id: string; status: ApplicationStatus; jobId: string; title: string; company: string; location: string | null; applyUrl: string; appliedAt: string | null; updatedAt: string; source: string;
   resume: { id: string; title: string } | null; events: Array<{ id: string; from: ApplicationStatus | null; to: ApplicationStatus; at: string; note: string | null }>; notes: Array<{ id: string; body: string; at: string }>;
 }
-const COLUMNS: Array<[ApplicationStatus, string]> = [["SAVED", "Saved"], ["APPLIED", "Applied"], ["SCREENING", "Screening"], ["INTERVIEW", "Interview"], ["OFFER", "Offer"], ["REJECTED", "Rejected"]];
-const LABEL = Object.fromEntries(COLUMNS) as Record<ApplicationStatus, string>;
+export interface BoardResume { id: string; title: string; kind: string; jobId: string | null; createdAt: string }
+const COLUMNS = APPLICATION_STATUSES;
+const STATUS_LABELS = APPLICATION_STATUS_LABELS;
 
-export function KanbanBoard({ applications, resumes }: { applications: BoardApplication[]; resumes: Array<{ id: string; title: string; kind: string; jobId: string | null }> }) {
+/** One choice per job (newest tailored version) plus the newest base résumé; the attached one always stays selectable. */
+function resumeChoices(resumes: BoardResume[], attachedId: string | null): BoardResume[] {
+  const latest = new Map<string, BoardResume>();
+  for (const r of [...resumes].sort((a, b) => b.createdAt.localeCompare(a.createdAt))) { const key = r.kind === "BASE" ? "base" : r.jobId ?? r.id; if (!latest.has(key)) latest.set(key, r); }
+  const out = [...latest.values()];
+  if (attachedId && !out.some((r) => r.id === attachedId)) { const a = resumes.find((r) => r.id === attachedId); if (a) out.push(a); }
+  return out.sort((a, b) => (a.kind === b.kind ? b.createdAt.localeCompare(a.createdAt) : a.kind === "BASE" ? 1 : -1));
+}
+const resumeLabel = (r: BoardResume) => `${r.kind === "BASE" ? "Base" : "Tailored"} · ${r.title} · ${format(new Date(r.createdAt), "MMM d")}`;
+
+export function KanbanBoard({ applications, resumes }: { applications: BoardApplication[]; resumes: BoardResume[] }) {
   const [apps, setApps] = useState(applications);
   const [openId, setOpenId] = useState<string | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [pending, start] = useTransition();
+  // Server actions revalidate this route; adopt the refreshed rows so the board never drifts from the database.
+  useEffect(() => { setApps(applications); }, [applications]);
   const open = apps.find((a) => a.id === openId) ?? null;
+  const choices = useMemo(() => resumeChoices(resumes, open?.resume?.id ?? null), [resumes, open?.resume?.id]);
 
-  function move(id: string, status: ApplicationStatus, resumeDocumentId?: string | null) {
+  function move(id: string, status: ApplicationStatus) {
     const prev = apps;
+    const current = apps.find((a) => a.id === id);
+    if (!current || current.status === status) return;
     setApps((xs) => xs.map((a) => (a.id === id ? { ...a, status, updatedAt: new Date().toISOString(), events: [...a.events, { id: `tmp-${Date.now()}`, from: a.status, to: status, at: new Date().toISOString(), note: null }] } : a)));
     start(async () => {
-      const r = await setStatusAction(id, status, resumeDocumentId);
+      const r = await setStatusAction(id, status);
       if (!r.ok) { setApps(prev); toast.error(r.error); }
+    });
+  }
+  function attach(id: string, resumeDocumentId: string | null) {
+    const prev = apps;
+    const doc = resumes.find((r) => r.id === resumeDocumentId);
+    setApps((xs) => xs.map((a) => (a.id === id ? { ...a, resume: doc ? { id: doc.id, title: doc.title } : null } : a)));
+    start(async () => {
+      const r = await attachResumeAction(id, resumeDocumentId);
+      if (!r.ok) { setApps(prev); toast.error(r.error); }
+    });
+  }
+  async function remove(a: BoardApplication) {
+    const r = await deleteApplicationAction(a.id);
+    if (!r.ok) { toast.error(r.error); return; }
+    setApps((xs) => xs.filter((x) => x.id !== a.id));
+    setOpenId(null);
+    toast.success(`Removed ${a.title} from your tracker`, {
+      action: {
+        label: "Undo",
+        onClick: () => start(async () => {
+          const u = await saveJobAction(a.jobId, a.status, a.resume?.id ?? null);
+          if (!u.ok) { toast.error(u.error); return; }
+          setApps((xs) => [{ ...a, id: u.data.id, updatedAt: new Date().toISOString(), events: [{ id: `tmp-${Date.now()}`, from: null, to: a.status, at: new Date().toISOString(), note: null }], notes: [] }, ...xs]);
+        }),
+      },
     });
   }
   if (apps.length === 0) return <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground" data-testid="tracker-empty">Nothing tracked yet. Save a job from your matches or mark one as applied.</div>;
@@ -69,26 +113,28 @@ export function KanbanBoard({ applications, resumes }: { applications: BoardAppl
                 <div>
                   <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Status</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {COLUMNS.map(([s, l]) => <Button key={s} size="sm" variant={open.status === s ? "default" : "outline"} disabled={pending} onClick={() => move(open.id, s)} data-testid={`status-${s}`}>{l}</Button>)}
+                    {COLUMNS.map(([s, l]) => <Button key={s} size="sm" variant={open.status === s ? "default" : "outline"} disabled={pending || open.status === s} aria-pressed={open.status === s} onClick={() => move(open.id, s)} data-testid={`status-${s}`}>{l}</Button>)}
                   </div>
                 </div>
                 <div>
                   <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Résumé used</p>
-                  <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={open.resume?.id ?? ""} onChange={(e) => { const id = e.target.value || null; const doc = resumes.find((r) => r.id === id); setApps((xs) => xs.map((a) => (a.id === open.id ? { ...a, resume: doc ? { id: doc.id, title: doc.title } : null } : a))); move(open.id, open.status, id); }}>
+                  <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={open.resume?.id ?? ""} onChange={(e) => attach(open.id, e.target.value || null)} data-testid="resume-select">
                     <option value="">None recorded</option>
-                    {resumes.map((r) => <option key={r.id} value={r.id}>{r.title}{r.kind === "BASE" ? " (base)" : ""}</option>)}
+                    {choices.map((r) => <option key={r.id} value={r.id}>{resumeLabel(r)}</option>)}
                   </select>
+                  <p className="mt-1 text-xs text-muted-foreground">Records which résumé you sent. Changing it never touches the status or the timeline.</p>
                   {open.appliedAt && <p className="mt-1 text-xs text-muted-foreground">Applied {format(new Date(open.appliedAt), "PPP")}{open.source === "EXTENSION" ? " via the extension" : ""}</p>}
                 </div>
                 <NoteBox applicationId={open.id} notes={open.notes} onAdded={(n) => setApps((xs) => xs.map((a) => (a.id === open.id ? { ...a, notes: [n, ...a.notes] } : a)))} />
                 <div>
                   <p className="mb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Timeline</p>
                   <ol className="space-y-1 text-sm" data-testid="timeline">
-                    {[...open.events].reverse().map((e) => <li key={e.id} className="flex justify-between gap-3"><span>{e.from ? `${LABEL[e.from]} → ` : ""}<Badge variant="secondary">{LABEL[e.to]}</Badge></span><span className="text-xs text-muted-foreground">{format(new Date(e.at), "PP p")}</span></li>)}
+                    {[...open.events].reverse().map((e) => <li key={e.id} className="flex justify-between gap-3"><span>{e.from ? `${STATUS_LABELS[e.from]} → ` : ""}<Badge variant="secondary">{STATUS_LABELS[e.to]}</Badge></span><span className="text-xs text-muted-foreground">{format(new Date(e.at), "PP p")}</span></li>)}
                   </ol>
                 </div>
-                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => start(async () => { const r = await deleteApplicationAction(open.id); if (r.ok) { setApps((xs) => xs.filter((a) => a.id !== open.id)); setOpenId(null); } })}>Remove from tracker</Button>
+                <Button variant="ghost" size="sm" className="text-destructive" disabled={pending} onClick={() => setConfirmRemove(true)} data-testid="remove-application">Remove from tracker</Button>
               </div>
+              <ConfirmDialog open={confirmRemove} onOpenChange={setConfirmRemove} title="Remove this application?" description={`${open.title} at ${open.company} leaves your tracker. Its notes and timeline are deleted; you can undo for a moment afterwards, but the notes will not come back.`} confirmLabel="Remove" onConfirm={() => remove(open)} testId="confirm-remove" />
             </>
           )}
         </SheetContent>

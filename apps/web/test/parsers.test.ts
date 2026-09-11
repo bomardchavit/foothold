@@ -42,7 +42,7 @@ describe("heuristic résumé parser", () => {
 });
 
 describe("heuristic job parser", () => {
-  const description = `About Acme\nAcme builds payments infrastructure for marketplaces.\n\nWhat you'll do\n• Build APIs in Go\n\nWhat we're looking for\n• 4+ years of professional software engineering experience\n• Strong experience with Go and PostgreSQL\n• Working knowledge of Kubernetes, Kafka\n\nNice to have\n• Experience with Rust\n• Terraform\n\nCompensation\nThe base salary range for this role is $150,000 - $190,000 per year.`;
+  const description = `About Acme\nAcme builds payments infrastructure for marketplaces: payment processing, lending and money movement for fintech platforms.\n\nWhat you'll do\n• Build APIs in Go\n\nWhat we're looking for\n• 4+ years of professional software engineering experience\n• Strong experience with Go and PostgreSQL\n• Working knowledge of Kubernetes, Kafka\n\nNice to have\n• Experience with Rust\n• Terraform\n\nCompensation\nThe base salary range for this role is $150,000 - $190,000 per year.`;
   it("separates required and preferred skills by section", () => {
     const j = parseJobHeuristic({ title: "Senior Backend Engineer", description, location: "Remote (US)" });
     expect(j.requiredSkills).toEqual(expect.arrayContaining(["Go", "PostgreSQL", "Kubernetes", "Kafka"]));
@@ -68,7 +68,7 @@ describe("heuristic job parser", () => {
     expect(detectRemote("Engineer (Remote)", null, "")).toBe(true);
   });
   it("sectionizes headers with colons", () => {
-    const s = sectionize("Requirements:\nA\nBonus points:\nB\nAbout us:\nC");
-    expect(s.required).toBe("A"); expect(s.preferred).toBe("B"); expect(s.other).toBe("C");
+    const s = sectionize("Requirements:\nA\nBonus points:\nB\nAbout us:\nC\nResponsibilities:\nD");
+    expect(s.required).toBe("A"); expect(s.preferred).toBe("B"); expect(s.boilerplate).toBe("C"); expect(s.other).toBe("D");
   });
 });

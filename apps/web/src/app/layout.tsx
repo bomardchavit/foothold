@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 export const metadata: Metadata = {
   title: { default: "Foothold", template: "%s · Foothold" },
   description: "Find your footing in the job search: ranked matches with a visible breakdown, a grounded copilot, and résumés tailored to each role.",
+  // Outbound clicks to employer apply pages must not carry the full /jobs?… URL (saved-filter ids, queries).
+  referrer: "strict-origin-when-cross-origin",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

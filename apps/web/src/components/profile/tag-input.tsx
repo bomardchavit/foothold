@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-export function TagInput({ value, onChange, placeholder, suggestions = [], testId, max = 150 }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string; suggestions?: string[]; testId?: string; max?: number }) {
+export function TagInput({ value, onChange, placeholder, suggestions = [], testId, max = 150, id, invalid = false, describedBy }: { value: string[]; onChange: (v: string[]) => void; placeholder?: string; suggestions?: string[]; testId?: string; max?: number; id?: string; invalid?: boolean; describedBy?: string }) {
   const [draft, setDraft] = useState("");
   const add = (raw: string) => {
     const items = raw.split(/[,\n]/).map((s) => s.trim()).filter(Boolean);
@@ -23,7 +23,7 @@ export function TagInput({ value, onChange, placeholder, suggestions = [], testI
           </span>
         ))}
       </div>
-      <Input className={cn("mt-2")} value={draft} placeholder={placeholder} data-testid={testId} onChange={(e) => setDraft(e.target.value)}
+      <Input id={id} className={cn("mt-2")} value={draft} placeholder={placeholder} data-testid={testId} aria-invalid={invalid || undefined} aria-describedby={describedBy} onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(draft); } else if (e.key === "Backspace" && !draft && value.length) onChange(value.slice(0, -1)); }}
         onBlur={() => draft && add(draft)} />
       {filtered.length > 0 && (
