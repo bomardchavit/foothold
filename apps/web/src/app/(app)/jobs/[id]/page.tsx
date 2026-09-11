@@ -69,7 +69,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
         <section className="mt-8">
           <h2 className="mb-3 text-xl">Posting</h2>
           <div className="whitespace-pre-wrap rounded-xl border bg-card p-5 text-sm leading-relaxed" data-testid="job-description">{job.description}</div>
-          <p className="mt-2 text-xs text-muted-foreground">Apply on the employer's site: <a className="underline" href={job.applyUrl} target="_blank" rel="noopener noreferrer">{job.applyUrl}</a></p>
+          <p className="mt-2 text-xs text-muted-foreground">Apply on the employer&apos;s site: <a className="underline" href={job.applyUrl} target="_blank" rel="noopener noreferrer">{job.applyUrl}</a></p>
         </section>
       </article>
       <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">

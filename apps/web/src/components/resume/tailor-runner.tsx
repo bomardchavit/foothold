@@ -22,7 +22,7 @@ export function TailorRunner({ jobId, title, company }: { jobId: string; title: 
       <h1 className="text-2xl">Tailoring your résumé</h1>
       <p className="mt-2 text-sm text-muted-foreground">for {title} at {company}</p>
       <Progress className="mt-6" value={pct} />
-      <p className="mt-3 text-xs text-muted-foreground">Reordering bullets, mirroring the posting's language, and checking every change against your profile.</p>
+      <p className="mt-3 text-xs text-muted-foreground">Reordering bullets, mirroring the posting&apos;s language, and checking every change against your profile.</p>
       {error && <p className="mt-4 text-sm text-destructive" role="alert">{error}</p>}
     </div>
   );
