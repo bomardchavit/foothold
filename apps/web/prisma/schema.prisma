@@ -383,10 +383,19 @@ model JobSource {
   enabled    Boolean        @default(true)
   lastRunAt  DateTime?
   lastStatus String?
+  /// Response validator from the last poll: a matching If-None-Match answers 304 and the source is skipped.
+  etag       String?
+  /// When the scheduler should poll this source next; null means "as soon as possible".
+  nextRunAt  DateTime?
+  /// Minutes between polls for this source. Cheap APIs poll fast; whole-site crawls poll slowly.
+  intervalMin Int           @default(10)
+  /// Consecutive failures; the scheduler backs a broken source off until it answers again.
+  failureCount Int          @default(0)
   runs       IngestionRun[]
   jobs       Job[]
 
   @@unique([kind, slug])
+  @@index([enabled, nextRunAt])
 }
 
 model IngestionRun {
@@ -399,6 +408,8 @@ model IngestionRun {
   inserted   Int       @default(0)
   updated    Int       @default(0)
   flagged    Int       @default(0)
+  /// True when the board answered 304: nothing changed since the last poll, so nothing was parsed.
+  notModified Boolean  @default(false)
   errorsJson Json?
 }
 
@@ -435,6 +446,8 @@ model Job {
   closedAt          DateTime?
   applyUrl          String
   contentHash       String
+  /// The board's version marker for this posting (Greenhouse updated_at); lets a poll skip unchanged rows.
+  sourceVersion     String?
   fingerprint       String?
   qualityFlags      String[]                   @default([])
   isLowQuality      Boolean                    @default(false)

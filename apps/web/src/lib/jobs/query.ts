@@ -147,3 +147,19 @@ export async function connectionCounts(userId: string, companyNormalizedNames: s
 export async function newSinceLastVisit(profileId: string, since: Date | null, take = 10): Promise<MatchRow[]> {
   return prisma.matchScore.findMany({ where: { profileId, job: { isLowQuality: false, closedAt: null, firstSeenAt: { gt: since ?? new Date(Date.now() - 7 * 86400_000) } } }, include: matchInclude, orderBy: [{ total: "desc" }], take });
 }
+
+export interface FeedFreshness { lastRunAt: Date | null; addedToday: number; sources: number }
+
+/**
+ * How fresh the feed is: when the scheduler last polled a board, and how many postings arrived today. This is the
+ * number a job seeker actually cares about when comparing us to a site that claims "updated every few minutes".
+ */
+export async function feedFreshness(): Promise<FeedFreshness> {
+  const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
+  const [latest, addedToday, sources] = await Promise.all([
+    prisma.jobSource.findFirst({ where: { enabled: true, lastRunAt: { not: null }, kind: { notIn: ["SEED", "MANUAL"] } }, orderBy: { lastRunAt: "desc" }, select: { lastRunAt: true } }),
+    prisma.job.count({ where: { firstSeenAt: { gte: midnight }, closedAt: null, isLowQuality: false } }),
+    prisma.jobSource.count({ where: { enabled: true, kind: { notIn: ["SEED", "MANUAL"] } } }),
+  ]);
+  return { lastRunAt: latest?.lastRunAt ?? null, addedToday, sources };
+}

@@ -62,3 +62,47 @@ describe("employment and workplace detection", () => {
     expect(detectWorkplaceType("Engineer", null, "")).toBe("UNKNOWN");
   });
 });
+
+describe("poll scheduling", () => {
+  it("polls API boards on the fast cadence, crawls slowly, and backs a failing source off", async () => {
+    const { pollIntervalMin } = await import("@/lib/ingest/run");
+    const base = { intervalMin: 10, failureCount: 0 };
+    expect(pollIntervalMin({ ...base, kind: "GREENHOUSE" })).toBe(10);
+    expect(pollIntervalMin({ ...base, kind: "ASHBY" })).toBe(10);
+    expect(pollIntervalMin({ ...base, kind: "CAREERS" })).toBe(60);
+    expect(pollIntervalMin({ ...base, kind: "WORKDAY" })).toBe(20);
+    // a board that keeps failing is retried later and later, never more often than the floor
+    expect(pollIntervalMin({ ...base, kind: "GREENHOUSE", failureCount: 1 })).toBe(20);
+    expect(pollIntervalMin({ ...base, kind: "GREENHOUSE", failureCount: 3 })).toBe(80);
+    expect(pollIntervalMin({ ...base, kind: "GREENHOUSE", failureCount: 12 })).toBe(240);
+  });
+});
+
+describe("conditional polling", () => {
+  it("greenhouse asks for the index, reports 304 as not-modified, and versions each posting", async () => {
+    const { greenhouse } = await import("@/lib/ingest/sources/greenhouse");
+    const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: RequestInfo | URL, init?: RequestInit) => {
+      const u = String(url);
+      calls.push({ url: u, headers: (init?.headers ?? {}) as Record<string, string> });
+      if ((init?.headers as Record<string, string>)?.["If-None-Match"] === 'W/"same"') return new Response(null, { status: 304 });
+      return new Response(JSON.stringify({ jobs: [{ id: 1, updated_at: "2026-09-11T10:00:00Z" }, { id: 2, updated_at: "2026-09-10T10:00:00Z" }] }), { status: 200, headers: { "content-type": "application/json", etag: 'W/"same"' } });
+    }) as typeof fetch;
+    try {
+      const fresh = await greenhouse.poll!({ slug: "acme", name: "Acme", etag: null });
+      expect(fresh.kind).toBe("index");
+      if (fresh.kind === "index") {
+        expect(fresh.entries).toEqual([{ externalId: "1", version: "2026-09-11T10:00:00Z" }, { externalId: "2", version: "2026-09-10T10:00:00Z" }]);
+        expect(fresh.etag).toBe('W/"same"');
+      }
+      const boardCall = calls.find((c) => c.url.includes("/boards/acme/jobs"))!;
+      expect(boardCall).toBeTruthy();
+      expect(boardCall.url).not.toContain("content=true"); // the index, not the 12x larger document
+      const again = await greenhouse.poll!({ slug: "acme", name: "Acme", etag: 'W/"same"' });
+      expect(again.kind).toBe("not-modified");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});

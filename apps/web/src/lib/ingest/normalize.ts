@@ -135,7 +135,7 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
   const now = new Date();
   const existing = await prisma.job.findUnique({ where: { sourceId_externalId: { sourceId: source.id, externalId: nj.externalId } } });
   if (existing && existing.contentHash === contentHash) {
-    await prisma.job.update({ where: { id: existing.id }, data: { lastSeenAt: now, ...reopen(existing) } });
+    await prisma.job.update({ where: { id: existing.id }, data: { lastSeenAt: now, sourceVersion: nj.version ?? existing.sourceVersion, ...reopen(existing) } });
     return { id: existing.id, inserted: false, changed: false };
   }
   const fingerprint = simhash(description);
@@ -166,7 +166,7 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
     city: loc.city, region: loc.region, country: loc.country, isRemote, workplaceType, employmentType, seniority: parsed.seniority,
     requiredSkills: parsed.requiredSkills, preferredSkills: parsed.preferredSkills, yearsMin: parsed.yearsMin, yearsMax: parsed.yearsMax,
     salaryMin, salaryMax, salaryCurrency: nj.salaryCurrency ?? parsed.salaryCurrency ?? (salaryMin ? "USD" : null), salaryPeriod,
-    industry, postedAt, lastSeenAt: now, closedAt: null, applyUrl: nj.applyUrl, contentHash, fingerprint,
+    industry, postedAt, lastSeenAt: now, closedAt: null, applyUrl: nj.applyUrl, contentHash, sourceVersion: nj.version ?? null, fingerprint,
     qualityFlags, isLowQuality: qualityFlags.length > 0, parseStatus: "DONE" as const, rawJson: (nj.raw ?? null) as object | null,
     companyId: company.id,
   };

@@ -154,6 +154,8 @@ export const NormalizedJobSchema = z.object({
   salaryMax: z.number().nullable().optional(),
   salaryCurrency: z.string().nullable().optional(),
   salaryPeriod: z.enum(["year", "month", "hour"]).nullable().optional(),
+  /** The board's own version marker for this posting (Greenhouse updated_at). Lets a poll skip unchanged rows. */
+  version: z.string().nullable().optional(),
   raw: z.unknown().optional(),
 });
 export type NormalizedJob = z.infer<typeof NormalizedJobSchema>;

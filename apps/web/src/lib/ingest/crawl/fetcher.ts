@@ -8,6 +8,13 @@ export class RobotsDisallowed extends Error { constructor(url: string) { super(`
 export class Blocked extends Error { constructor(url: string, status: number) { super(`Blocked (${status}) at ${url}; not retrying`); } }
 
 const MIN_DELAY_MS = Number(process.env.SCRAPER_MIN_DELAY_MS ?? 1500);
+/**
+ * Documented JSON job APIs are built for programmatic clients and answer from a CDN, so they get a shorter floor than
+ * the 1.5s used when crawling someone's website. Still one request at a time per host, still backs off on 429/503.
+ */
+const API_DELAY_MS = Number(process.env.SCRAPER_API_DELAY_MS ?? 800);
+const API_HOSTS = /^(?:boards-api\.greenhouse\.io|api\.lever\.co|api\.ashbyhq\.com|api\.smartrecruiters\.com|apply\.workable\.com|data\.usajobs\.gov|api\.adzuna\.com)$/i;
+export const hostDelayFloor = (hostname: string) => (API_HOSTS.test(hostname) ? API_DELAY_MS : MIN_DELAY_MS);
 const hosts = new Map<string, { nextAt: number; chain: Promise<unknown> }>();
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -24,7 +31,7 @@ export interface PoliteInit { method?: "GET" | "POST"; headers?: Record<string, 
 export async function politeFetch(url: string, init: PoliteInit = {}): Promise<Response> {
   const u = new URL(url);
   if (!init.skipRobots && !(await isAllowed(u))) throw new RobotsDisallowed(url);
-  const delay = Math.max(MIN_DELAY_MS, await crawlDelayMs(u.origin));
+  const delay = Math.max(hostDelayFloor(u.hostname), await crawlDelayMs(u.origin));
   const retries = init.retries ?? 3;
   for (let attempt = 0; ; attempt++) {
     await slot(u.origin, delay);

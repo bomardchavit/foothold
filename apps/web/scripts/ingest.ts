@@ -1,6 +1,7 @@
 // Scraper pipeline CLI (public APIs + robots.txt-compliant crawling; no proxy/UA rotation).
 //   npm run ingest                          run every enabled source once
 //   npm run ingest -- --watch 30            run every 30 minutes until stopped
+//   npm run ingest -- poll [budgetSeconds]  poll every source whose turn has come (what the scheduler does)
 //   npm run ingest -- discover stripe.com   find where a company hosts its jobs and register the sources
 //   npm run ingest -- careers https://example.com/careers   crawl a careers site (JSON-LD JobPosting)
 //   npm run ingest -- greenhouse:stripe     run one source by kind:slug (created if missing)
@@ -49,6 +50,12 @@ async function main() {
   const once = async () => {
     if (!cmd) { await ingestAllJob(); return; }
     if (cmd === "export") { await exportJobs(); return; }
+    if (cmd === "poll") {
+      const { pollDueSources } = await import("../src/lib/ingest/run");
+      const s = await pollDueSources({ budgetMs: Number(arg ?? 0) * 1000 || undefined });
+      console.log(`[poll] ${s.polled}/${s.due} due sources in ${Math.round(s.durationMs / 1000)}s: ${s.notModified} unchanged, ${s.inserted} new, ${s.updated} updated, ${s.closed} closed, ${s.failed} failed`);
+      return;
+    }
     if (cmd === "discover") {
       if (!arg) throw new Error("usage: discover <domain-or-url>");
       const r = await discoverSources(arg);

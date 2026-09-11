@@ -1,6 +1,7 @@
 import { requireOnboarded } from "@/lib/session";
 import { prisma } from "@/lib/db";
-import { parseFeedFilters, queryFeed, tabCounts, connectionCounts, isDefaultFilters } from "@/lib/jobs/query";
+import { formatDistanceToNowStrict } from "date-fns";
+import { parseFeedFilters, queryFeed, tabCounts, connectionCounts, isDefaultFilters, feedFreshness } from "@/lib/jobs/query";
 import { breakdownFromRow } from "@/lib/matching/service";
 import { listIndustries } from "@/lib/jobs/industries";
 import { companyHasLogo } from "@/lib/jobs/logo";
@@ -28,12 +29,13 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
     if (sf) params = { ...(sf.paramsJson as Record<string, string>), ...sp };
   }
   const filters = parseFeedFilters(params);
-  const [feed, counts, industries, savedFilters, totalMatches] = await Promise.all([
+  const [feed, counts, industries, savedFilters, totalMatches, freshness] = await Promise.all([
     queryFeed(profile.id, user.id, filters),
     tabCounts(profile.id, user.id),
     listIndustries(),
     prisma.savedFilter.findMany({ where: { userId: user.id }, orderBy: { order: "asc" } }),
     prisma.matchScore.count({ where: { profileId: profile.id } }),
+    feedFreshness(),
   ]);
   const conn = await connectionCounts(user.id, [...new Set(feed.rows.map((r) => r.job.company.normalizedName))]);
   const appRows = await prisma.application.findMany({ where: { userId: user.id, jobId: { in: feed.rows.map((r) => r.jobId) } }, select: { jobId: true, status: true } });
@@ -62,7 +64,11 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
           {cards.length === 0 ? <EmptyState tab={filters.tab} hidden={filters.hidden} filtered={!isDefaultFilters(filters)} computing={totalMatches === 0} /> : cards.map((c) => <JobCard key={c.jobId} data={c} />)}
         </div>
         <div className="max-w-[980px] px-4 sm:px-6"><Pagination page={filters.page} pageSize={feed.pageSize} count={feed.count} /></div>
-        <p className="mt-6 max-w-[980px] px-4 text-xs text-muted-foreground sm:px-6" data-testid="feed-count">{feed.count} roles{feed.hidden > 0 ? ` · ${feed.hidden} hidden as low quality` : ""}</p>
+        <p className="mt-6 max-w-[980px] px-4 text-xs text-muted-foreground sm:px-6" data-testid="feed-count">
+          {feed.count} roles{feed.hidden > 0 ? ` · ${feed.hidden} hidden as low quality` : ""}
+          {freshness.addedToday > 0 ? ` · ${freshness.addedToday} added today` : ""}
+          {freshness.lastRunAt ? ` · boards checked ${formatDistanceToNowStrict(freshness.lastRunAt, { addSuffix: true })}` : ""}
+        </p>
       </div>
       <RightRail user={{ name: user.name, email: user.email, image: user.image }} savedFilters={savedFilters.map((s) => ({ id: s.id, name: s.name, params: s.paramsJson as Record<string, string> }))} currentParams={params as Record<string, string | string[] | undefined>} activeId={sfId ?? null} />
     </div>
