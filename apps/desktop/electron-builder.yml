@@ -48,5 +48,6 @@ linux:
   artifactName: Foothold-${version}-${arch}.${ext}
   # Without this the executable is named after the npm package (@foothold/desktop), which AppImage rejects.
   executableName: foothold
+  syncDesktopName: true
   synopsis: Job search with the reasoning shown
   maintainer: Foothold <noreply@foothold.app>

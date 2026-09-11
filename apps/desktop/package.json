@@ -1,9 +1,15 @@
 {
   "name": "@foothold/desktop",
   "productName": "Foothold",
+  "desktopName": "foothold.desktop",
   "version": "0.1.0",
   "private": true,
   "description": "Foothold desktop app",
+  "homepage": "https://github.com/bomardchavit/foothold",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bomardchavit/foothold.git"
+  },
   "author": "Foothold",
   "main": "dist/main.js",
   "scripts": {
