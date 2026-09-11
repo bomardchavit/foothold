@@ -1,5 +1,10 @@
 name: ci
 on: [push, pull_request]
+
+# One run per ref: rapid pushes should not queue up duplicate suites.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
     runs-on: ubuntu-latest
