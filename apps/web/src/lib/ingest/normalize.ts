@@ -6,11 +6,24 @@ import { parseJob } from "../llm/tasks/parseJob";
 import { computeQualityFlags } from "./quality";
 import { refreshCompanySignal } from "../h1b/signal";
 
-/** Bump when job parsing changes so the next ingest run re-parses unchanged postings. */
-export const PARSER_VERSION = "5";
+const ALLOWED_COUNTRIES = (process.env.JOBS_COUNTRIES ?? "US").split(",").map((c) => c.trim().toUpperCase()).filter(Boolean);
 
-export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob): Promise<{ id: string; inserted: boolean; changed: boolean }> {
+/** Country scope: keep jobs in the allowed countries, remote jobs, and jobs whose location we cannot place. */
+export function inScope(loc: { country: string | null; isRemote: boolean; raw: string }, isRemote: boolean): boolean {
+  if (!ALLOWED_COUNTRIES.length || ALLOWED_COUNTRIES.includes("ALL")) return true;
+  if (loc.country) return ALLOWED_COUNTRIES.includes(loc.country);
+  if (isRemote || loc.isRemote) return true;
+  return !loc.raw || !/\b(canada|india|uk|united kingdom|london|germany|berlin|france|paris|ireland|dublin|netherlands|amsterdam|spain|australia|sydney|singapore|japan|tokyo|brazil|mexico|israel|poland|toronto|vancouver|bangalore|bengaluru|hyderabad|pune|mumbai|europe|emea|apac|latam)\b/i.test(loc.raw);
+}
+
+/** Bump when job parsing changes so the next ingest run re-parses unchanged postings. */
+export const PARSER_VERSION = "6";
+
+export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob): Promise<{ id: string; inserted: boolean; changed: boolean; skipped?: "out-of-scope" }> {
   const description = nj.description.trim();
+  const locEarly = parseLocation(nj.location);
+  if (!inScope(locEarly, Boolean(nj.isRemote))) return { id: "", inserted: false, changed: false, skipped: "out-of-scope" };
+  nj = { ...nj, companyDomain: nj.companyDomain ?? source.domain ?? undefined };
   const contentHash = createHash("sha1").update(`${PARSER_VERSION}|${nj.title}|${nj.company}|${description}`).digest("hex");
   const normalizedName = normalizeCompanyName(nj.company) || normalizeText(nj.company);
   let company = await prisma.company.findUnique({ where: { normalizedName } });
@@ -38,7 +51,7 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
     }
   }
   const { parsed } = await parseJob({ title: nj.title, description, location: nj.location });
-  const loc = parseLocation(nj.location);
+  const loc = locEarly;
   const isRemote = Boolean(nj.isRemote) || parsed.isRemote || loc.isRemote;
   const workplaceType = nj.workplaceType ?? (isRemote && parsed.workplaceType !== "HYBRID" ? "REMOTE" : parsed.workplaceType);
   const employmentType = nj.employmentType ?? parsed.employmentType;

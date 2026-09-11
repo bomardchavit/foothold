@@ -12,10 +12,16 @@ export const greenhouse: SourceAdapter = {
     const board = await getJson<GhBoard>(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}`).catch(() => null);
     const data = await getJson<{ jobs: GhJob[] }>(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(slug)}/jobs?content=true`);
     const company = board?.name || name || slug;
-    return data.jobs.map((j): NormalizedJob => ({
+    return data.jobs.map((j): NormalizedJob => {
+      const locName = j.location?.name?.trim() ?? "";
+      const offices = (j.offices ?? []).map((o) => o.name).filter(Boolean);
+      // Greenhouse often puts the workplace word in `location` ("Hybrid") and the real cities in `offices`.
+      const location = /^(hybrid|remote|on-?site|flexible)$/i.test(locName) || !locName ? (offices.length ? `${offices.join(" · ")}${locName ? ` (${locName})` : ""}` : locName || null) : locName;
+      return {
       externalId: String(j.id), title: j.title, company, description: stripHtml(decodeEntities(j.content ?? "")),
-      location: j.location?.name ?? null, isRemote: /remote/i.test(j.location?.name ?? ""), applyUrl: j.absolute_url,
+      location, isRemote: /remote/i.test(locName) || /remote/i.test(offices.join(" ")), workplaceType: /hybrid/i.test(locName) ? "HYBRID" : /remote/i.test(locName) ? "REMOTE" : undefined, applyUrl: j.absolute_url,
       postedAt: j.updated_at ?? j.first_published ?? null, raw: { departments: j.departments, offices: j.offices, first_published: j.first_published },
-    }));
+      };
+    });
   },
 };

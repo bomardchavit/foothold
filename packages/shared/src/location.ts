@@ -40,9 +40,9 @@ export function parseLocation(raw: string | null | undefined): ParsedLocation {
   const parts = s.split(/[,;|\/·•–-]|\s-\s/).map((p) => p.trim()).filter(Boolean).filter((p) => !/^(remote|hybrid|on-?site|anywhere)$/i.test(p));
   for (const p of parts) {
     const pl = p.toLowerCase().replace(/\.$/, "");
-    if (COUNTRIES[pl]) { out.country = COUNTRIES[pl]; continue; }
-    if (US_STATES[p.toUpperCase()] && p.length === 2) { out.region = p.toUpperCase(); out.country ??= "US"; continue; }
-    if (STATE_BY_NAME.has(pl)) { out.region = STATE_BY_NAME.get(pl)!; out.country ??= "US"; if (!out.city && CITY_HINTS[pl]) out.city = p; continue; }
+    if (COUNTRIES[pl]) { out.country ??= COUNTRIES[pl]; continue; }
+    if (US_STATES[p.toUpperCase()] && p.length === 2) { out.region ??= p.toUpperCase(); out.country ??= "US"; continue; }
+    if (STATE_BY_NAME.has(pl)) { out.region ??= STATE_BY_NAME.get(pl)!; out.country ??= "US"; if (!out.city && CITY_HINTS[pl]) out.city = p; continue; }
     const hint = CITY_HINTS[pl];
     if (hint) { out.city ??= p; out.region ??= hint[0] || null; out.country ??= hint[1]; continue; }
     if (!out.city && /^[a-z .'-]+$/i.test(p) && p.length > 2) out.city = p;

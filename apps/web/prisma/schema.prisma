@@ -365,6 +365,8 @@ model Company {
   h1bMatchedName String?
   h1bApprovals   Int          @default(0)
   h1bYears       Int[]        @default([])
+  logoKey        String?
+  logoFetchedAt  DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   jobs           Job[]
@@ -375,6 +377,7 @@ model JobSource {
   kind       JobSourceKind
   slug       String
   name       String?
+  domain     String?
   enabled    Boolean        @default(true)
   lastRunAt  DateTime?
   lastStatus String?

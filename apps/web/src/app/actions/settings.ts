@@ -52,6 +52,22 @@ export async function addSourceAction(input: { kind: JobSourceKind; slug: string
   return { ok: true, data: undefined };
 }
 
+export async function bootstrapUsAction(limit?: number): Promise<Result<{ started: boolean }>> {
+  await requireUser();
+  const { after } = await import("next/server");
+  const { bootstrapUsCompanies } = await import("@/lib/ingest/run");
+  after(async () => { await bootstrapUsCompanies({ limit }); });
+  return { ok: true, data: { started: true } };
+}
+
+export async function refreshLogosAction(): Promise<Result<{ resolved: number }>> {
+  await requireUser();
+  const { resolveMissingLogos } = await import("@/lib/logos/resolve");
+  const resolved = await resolveMissingLogos(100);
+  revalidatePath("/jobs");
+  return { ok: true, data: { resolved } };
+}
+
 export async function refreshH1bAction(): Promise<Result<{ companies: number }>> {
   await requireUser();
   const { refreshAllCompanySignals } = await import("@/lib/h1b/signal");

@@ -4,6 +4,9 @@
 //   npm run scrape -- discover stripe.com   find where a company hosts its jobs and register the sources
 //   npm run scrape -- careers https://example.com/careers   crawl a careers site (JSON-LD JobPosting)
 //   npm run scrape -- greenhouse:stripe     run one source by kind:slug (created if missing)
+//   npm run scrape -- bootstrap [n]         register + ingest the curated US companies (first n)
+//   npm run scrape -- logos [n]             fetch missing company logos
+//   npm run scrape -- prune                 drop jobs outside JOBS_COUNTRIES
 //   npm run scrape -- export                write data/exports/jobs.json (normalized dump)
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -12,8 +15,8 @@ import { ingestAllJob, ingestSourceJob } from "../src/lib/ingest/run";
 import { discoverSources } from "../src/lib/ingest/discover";
 import type { JobSourceKind } from "@prisma/client";
 
-async function runKindSlug(kind: JobSourceKind, slug: string, name?: string) {
-  const src = await prisma.jobSource.upsert({ where: { kind_slug: { kind, slug } }, create: { kind, slug, name: name ?? null, enabled: true }, update: { enabled: true } });
+async function runKindSlug(kind: JobSourceKind, slug: string, name?: string, domain?: string) {
+  const src = await prisma.jobSource.upsert({ where: { kind_slug: { kind, slug } }, create: { kind, slug, name: name ?? null, domain: domain ?? null, enabled: true }, update: { enabled: true, ...(domain ? { domain } : {}) } });
   const r = await ingestSourceJob({ sourceId: src.id });
   console.log(`${kind}/${slug}:`, r);
 }
@@ -45,9 +48,13 @@ async function main() {
       const r = await discoverSources(arg);
       console.log(`company: ${r.name}\nvisited: ${r.visited.join(", ")}${r.blocked.length ? `\nblocked by robots.txt: ${r.blocked.join(", ")}` : ""}`);
       if (!r.found.length) { console.log("no job source found"); return; }
-      for (const f of r.found) { console.log(`found ${f.kind} ${f.slug} (${f.url}) via ${f.evidence}`); await runKindSlug(f.kind, f.slug, f.name); }
+      const domain = new URL(/^https?:\/\//i.test(arg) ? arg : `https://${arg}`).hostname.replace(/^www\./, "");
+      for (const f of r.found) { console.log(`found ${f.kind} ${f.slug} (${f.url}) via ${f.evidence}`); await runKindSlug(f.kind, f.slug, f.name, domain); }
       return;
     }
+    if (cmd === "bootstrap") { const { bootstrapUsCompanies } = await import("../src/lib/ingest/run"); await bootstrapUsCompanies({ limit: arg ? Number(arg) : undefined }); return; }
+    if (cmd === "logos") { const { resolveMissingLogos } = await import("../src/lib/logos/resolve"); console.log("resolved", await resolveMissingLogos(arg ? Number(arg) : 200), "logos"); return; }
+    if (cmd === "prune") { const { pruneOutOfScope } = await import("../src/lib/ingest/run"); console.log("removed", await pruneOutOfScope(), "out-of-scope jobs"); return; }
     if (cmd === "careers") { if (!arg) throw new Error("usage: careers <careers-url>"); await runKindSlug("CAREERS", arg); return; }
     const [k, ...rest] = cmd.split(":");
     const slug = rest.join(":");

@@ -80,4 +80,9 @@ test("liking, hiding, tabs and saved filters work on the jobs workspace", async 
   await page.getByTestId("save-filter-name").press("Enter");
   await expect(page).toHaveURL(/sf=/);
   await expect(page.getByTestId("saved-filters")).toContainText("Remote full-time");
+  // clean up so repeated runs do not pile up saved filters
+  const row = page.getByTestId("saved-filters").locator("li").filter({ hasText: "Remote full-time" }).first();
+  await row.hover();
+  await row.getByLabel("Delete").click();
+  await expect(page.getByTestId("saved-filters").locator("li").filter({ hasText: "Remote full-time" })).toHaveCount(0);
 });

@@ -23,8 +23,10 @@ const BOARDS: Array<["GREENHOUSE" | "LEVER" | "ASHBY", string, string]> = [
 
 async function main() {
   console.log("[seed] job sources");
+  const { US_COMPANIES } = await import("../src/lib/ingest/us-companies");
   for (const [kind, slug, name] of BOARDS) {
-    await prisma.jobSource.upsert({ where: { kind_slug: { kind, slug } }, create: { kind, slug, name, enabled: false }, update: { name } });
+    const domain = US_COMPANIES.find((c) => c.slug === slug)?.domain ?? null;
+    await prisma.jobSource.upsert({ where: { kind_slug: { kind, slug } }, create: { kind, slug, name, domain, enabled: false }, update: { name, domain } });
   }
   const seedSource = await prisma.jobSource.upsert({ where: { kind_slug: { kind: "SEED", slug: "jobs" } }, create: { kind: "SEED", slug: "jobs", name: "Synthetic starter dataset", enabled: true }, update: {} });
 

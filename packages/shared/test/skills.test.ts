@@ -60,6 +60,8 @@ describe("location", () => {
     expect(parseLocation("Remote - New York, NY")).toMatchObject({ isRemote: true, city: "New York", region: "NY" });
     expect(parseLocation("London, United Kingdom").country).toBe("GB");
     expect(parseLocation("Austin").region).toBe("TX");
+    expect(parseLocation("Austin, TX · London, United Kingdom (Hybrid)")).toMatchObject({ city: "Austin", region: "TX", country: "US" });
+    expect(parseLocation("London, United Kingdom · Austin, TX").country).toBe("GB");
   });
 });
 
