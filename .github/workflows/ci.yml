@@ -22,6 +22,8 @@ jobs:
       LLM_MODE: heuristic
       EMBEDDINGS_PROVIDER: local
       ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      # CI must not poll live job boards: the suite asserts on seeded data.
+      DISABLE_SCHEDULER: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

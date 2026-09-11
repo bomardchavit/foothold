@@ -112,6 +112,7 @@ npm run scrape -- discover stripe.com              # find the ATS a company uses
 npm run scrape -- careers https://example.com/careers
 npm run scrape -- greenhouse:stripe                # one source by kind:slug
 npm run scrape                                     # every enabled source once
+npm run scrape -- poll                             # one scheduler tick: only the sources whose turn has come
 npm run scrape:watch                               # every 30 minutes (or run `npm run worker` for the 6-hourly schedule)
 npm run scrape -- export                           # data/exports/jobs.json, normalized
 npm run scrape -- logos --retry                    # every company gets a logo (site icon → favicon services → generated mark); --retry re-probes generated marks
@@ -123,69 +124,18 @@ npm run scrape -- reparse                          # re-run the parser over stor
 
 Postings a board stops returning are marked closed and drop out of the feed, scoring, digests and similar-roles (rows a user tracked are kept, with a "No longer listed" badge on the job page).
 
-**Runs on its own.** While the app is running, an in-process scheduler re-runs every enabled source every `SCRAPE_INTERVAL_MIN` minutes (default 120); with `JOBS_MODE=queue` the worker takes over on a 6-hour schedule. `JOBS_COUNTRIES=US` (default) keeps only US-located, remote, or unplaceable postings and prunes the rest. Company logos are fetched from each company's own site (apple-touch-icon / icon links / favicon, robots-compliant) and served from `/api/logo/:companyId`, with a public favicon service as fallback and an initials tile after that. **No API keys are involved in scraping**; only Adzuna/USAJobs (extra sources) and Anthropic/Voyage (AI features) need keys.
+**Runs on its own, every ten minutes.** While the app is running, an in-process scheduler ticks every
+`SCRAPE_INTERVAL_MIN` minutes (default 10) and polls every source whose turn has come, API boards first so a slow site
+crawl never delays the rest. Boards are asked what changed before anything is parsed:
 
-Each posting is normalized (title, company, location, remote/hybrid/onsite, employment type, level, required/preferred skills, years, salary, posting date, apply URL, source), deduplicated by content hash, by near-duplicate fingerprint across sources, and across companies (agency reposts), quality-flagged (stale, scam patterns, missing employer domain), embedded, and scored for every onboarded profile. Headless rendering needs Chromium once: `npx playwright install chromium` in `apps/web`. Tune with `SCRAPER_MIN_DELAY_MS`, `SCRAPER_MAX_PAGES`, `SCRAPER_CONTACT`.
+| Board | How a poll works | Cost when nothing changed |
+|---|---|---|
+| Greenhouse | index endpoint (12× smaller, carries `updated_at` per posting) + `If-None-Match`; changed postings fetched one by one | one small request, nothing parsed |
+| Ashby, Lever | whole board with `If-None-Match` | one small request, nothing parsed |
+| SmartRecruiters | posting list polled, only new ids opened | one list request |
+| Careers sites, Workday | full crawl, hourly rather than every tick | n/a |
 
-## Seeding and data
-
-- `npm run db:seed` loads `data/seed/jobs.json` (311 fictional postings across 40 fictional companies, including stale, scam-pattern and cross-agency duplicate examples), `data/seed/h1b_sample.csv` (a small illustrative slice shaped like the USCIS H-1B Employer Data Hub), 25 curated Greenhouse/Lever/Ashby boards (disabled until you enable them), and the demo user.
-- Regenerate the synthetic dataset: `node scripts/generate-seed.mjs`.
-- Real jobs: Settings → Job sources → enable a board and press Run, or `npm run ingest -- greenhouse:stripe`. `npm run ingest` runs every enabled source. Runs also happen every 6 hours when the worker is on.
-- Real H-1B data: download the CSV from the [USCIS H-1B Employer Data Hub](https://www.uscis.gov/tools/reports-and-studies/h-1b-employer-data-hub) and run `npm run h1b:load -- path/to/file.csv`.
-- Sample résumés for testing: `data/seed/resumes/*.txt|pdf|docx`.
-
-## Phase demos
-
-| Phase | What to try |
-|---|---|
-| 1 Profile | Sign in with a new email → upload `data/seed/resumes/priya_natarajan.pdf` → review the structured profile (every field editable) → set preferences. |
-| 2 Matching | `/jobs`: ranked cards with the company logo, fit ring and signal rows. Open a job: the same score card (apply with autofill, hide, like, one status control), a check/partial/x analysis of every component with its evidence, you-vs-requirements, keyword gaps, company card (size, industry, H-1B history, open roles) and similar roles. Filters: fit threshold, posted-within, location, remote, seniority, industry, salary, H-1B signal, low-quality toggle. |
-| 3 Copilot | On a job, “Ask Belay why I match”. Every claim carries `[P#]`/`[J#]`/`[M#]` chips; hover to see the source line. Try gaps, cover letter, interview prep, should I apply. |
-| 4 Résumé AI | On a job, “Tailor my résumé”. Changes tab shows per-bullet diffs labeled Reworded / Expanded / Added; keep or revert each; “Grounded only” strips unverified content; export PDF or DOCX. |
-| 5 Tracker + Insights | `/tracker` kanban with timestamps, notes, résumé used. `/insights`: skills you are missing most across your top 100 matches. |
-| 6 Network | `/network`: import a LinkedIn `Connections.csv` or add contacts; job pages show people who work(ed) there with shared school/employer; draft referral, coffee-chat and alumni messages. |
-| 7 Extension | `npm run build:extension`, load `apps/extension/dist` unpacked in Chrome, pair it in Settings → Chrome extension, open a Greenhouse or Lever application and press Fill. |
-| 8 Signals + digest | H-1B badges on cards (USCIS exact match = sponsors, fuzzy = likely). Low-quality listings hidden by default. Digest: Settings → “Send me a digest now”, or `POST /api/cron/digest` with `Authorization: Bearer $CRON_SECRET`. |
-
-## How the score works
-
-Six components, each 0–100, weighted skills 35 / profile relevance 20 / seniority 15 / years 10 / industry 10 / location 10. Weights renormalize when a component does not apply (no location preference, no industry preference, no embeddings yet). Unknown job data scores 50 and is labeled. Skills use a canonical taxonomy with aliases and an implication map for matching only (Next.js counts as React). Details: `packages/shared/src/scoring.ts`.
-
-## How grounding is enforced (in code)
-
-- **Copilot**: context is line-numbered (P = profile, J = posting, M = breakdown). After each answer, `apps/web/src/lib/copilot/grounding.ts` validates every citation id, checks that any claimed skill or number exists in the profile, and flags uncited claims. With Claude, a failing answer is regenerated once with the violations; still-ungrounded sentences are replaced with “I can't ground this from your profile.” The UI shows the status.
-- **Tailoring**: the model only returns bullet rewrites, ordering, skills and a summary; employers, titles and dates are copied from the profile by code. Every rewritten bullet passes a classifier: a new tool/skill or number not in the profile forces the label **Expanded** (or **Added**) with the reason shown. You decide per bullet, and “Grounded only” exports strip them.
-
-## Architecture
-
-`apps/web` (Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui, Prisma + pgvector, Auth.js, Anthropic SDK, pg-boss) · `apps/extension` (Manifest V3, Vite + CRXJS) · `packages/shared` (zod schemas, skill taxonomy, scoring, ATS field patterns shared with the extension) · `data/seed`.
-
-Background jobs (parse, embed, match, ingest, digest) run inline after the request by default; set `JOBS_MODE=queue` and run `npm run worker` for a separate process with scheduled ingestion (every 6 h) and digests (13:00 UTC).
-
-## Deployment
-
-- **Web**: any Node 22 host. `npm ci && npm run build -w apps/web && npm run start -w apps/web` with `DATABASE_URL` pointing at Postgres 17 + pgvector and `AUTH_URL`/`APP_URL` set to the public origin. A `Dockerfile` is included: `docker build -t foothold . && docker run -p 3000:3000 --env-file apps/web/.env foothold`.
-- **Worker**: run `npm run worker -w apps/web` as a second process with `JOBS_MODE=queue` on the web app; it owns ingestion every 6 h and digests at 13:00 UTC. Without a worker, background work runs inline after each request and `npm run scrape:watch` keeps jobs fresh.
-- **Migrations**: `npm run db:migrate` on deploy (Prisma `migrate deploy`).
-- **Digest cron** without a worker: `POST /api/cron/digest` with `Authorization: Bearer $CRON_SECRET`.
-
-## Tests
-
-```bash
-npm run typecheck
-npm test                 # Vitest: scoring, taxonomy, parsers, quality flags, grounding, tailoring classifier
-npm run e2e              # Playwright: onboard, match, tailor (needs the DB seeded; starts the dev server)
-```
-
-## Analytics events
-
-`user_signed_up`, `onboarding_step_completed`, `profile_completed`, `feed_viewed` (retention anchor: weekly return), `job_viewed`, `match_breakdown_opened`, `low_quality_toggled`, `copilot_asked`, `resume_tailored`, `tailoring_diff_accepted`, `resume_exported` (activation: first tailored export), `application_status_changed`, `outreach_sent`, `contacts_imported`, `extension_paired`, `extension_autofill_used`, `digest_sent`.
-
-## Data and legal notes
-
-Jobs: Greenhouse Job Board API, Lever Postings API, Ashby Posting API, Adzuna (attribution required in your UI if you enable it), USAJobs, plus the fictional seed set. No HTML scraping anywhere. H-1B: public USCIS data. Contacts: your own export. Résumé text is sent only to the Anthropic API when a key is configured. Account deletion removes everything.
-
-## Known limits
-
-Résumé parsing without a key is rule-based (best on single-column résumés). Semantic relevance without an embeddings key uses a local hashed embedding, so calibrate expectations (the other five components carry the score). The extension targets Greenhouse and Lever; Ashby and Workday pages are detected but field coverage is partial.
+Measured across 103 live sources: a steady tick polls 82 in about 3.5 minutes and 71 of them answer "no change".
+Postings that vanish from a board are closed and drop out of the feed. Per-source timeouts, a tick budget and a
+failure backoff keep one bad board from holding up a tick, and `/jobs` shows how many roles arrived today and when the
+boards were last checked. With `JOBS_MODE=queue` the worker takes over on its own schedule. `JOBS_COUNTRIES=US` (default) keeps only US-located, remote, or unplaceable postings and prunes the rest. Company logos are fetched from each company's own site (apple-touch-icon / icon links / favicon, robots-compliant) and served from `/api/logo/:companyId`, with a public favicon service as fallback and an initials tile after that. **No API keys are involved in scraping**; only Adzuna/USAJobs (extra sources) and Anthropic/Voyage (AI features) need keys.
