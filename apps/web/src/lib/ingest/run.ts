@@ -89,7 +89,7 @@ export async function ingestSourceJob({ sourceId, force = false }: { sourceId: s
     await prisma.ingestionRun.update({ where: { id: run.id }, data: { finishedAt: new Date(), fetched, inserted, updated, flagged, errorsJson: errors.length ? errors.slice(0, 50) : undefined } });
     const status = `ok${inserted ? `, ${inserted} new` : ""}${updated ? `, ${updated} updated` : ""}${skipped ? `, ${skipped} skipped (outside ${COUNTRIES})` : ""}${closed ? `, ${closed} closed` : ""}${errors.length ? `, ${errors.length} errors` : ""}`;
     // The etag is only stored when the pass completed, so a failure re-reads the board instead of trusting a stale 304.
-    await prisma.jobSource.update({ where: { id: sourceId }, data: { lastRunAt: new Date(), lastStatus: status, etag: errors.length ? null : indexed?.etag ?? null, failureCount: 0 } });
+    await prisma.jobSource.update({ where: { id: sourceId }, data: { lastRunAt: new Date(), lastStatus: status, etag: errors.length ? null : indexed?.etag ?? null, failureCount: 0, lastIndexComplete: indexed?.complete !== false } });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await prisma.ingestionRun.update({ where: { id: run.id }, data: { finishedAt: new Date(), fetched, inserted, updated, errorsJson: [msg, ...errors].slice(0, 50) } });

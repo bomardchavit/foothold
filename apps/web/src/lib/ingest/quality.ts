@@ -88,7 +88,9 @@ export async function refreshStaleFlags(): Promise<number> {
       NOT: { qualityFlags: { has: QUALITY_FLAGS.STALE } },
       OR: [
         { source: { kind: "SEED" }, postedAt: { lt: d(60) } },
-        { source: { kind: { not: "SEED" } }, OR: [{ lastSeenAt: { lt: d(14) } }, { postedAt: { lt: d(60) }, lastSeenAt: { lt: d(7) } }] },
+        // A board we only ever read the newest slice of (a Workday tenant with thousands of postings) cannot tell us
+        // that an older posting is gone, so its rows are never called stale on that evidence.
+        { source: { kind: { not: "SEED" }, lastIndexComplete: true }, OR: [{ lastSeenAt: { lt: d(14) } }, { postedAt: { lt: d(60) }, lastSeenAt: { lt: d(7) } }] },
       ],
     },
     select: { id: true, postedAt: true, lastSeenAt: true, source: { select: { kind: true } } },

@@ -392,6 +392,8 @@ model JobSource {
   intervalMin Int           @default(10)
   /// Consecutive failures; the scheduler backs a broken source off until it answers again.
   failureCount Int          @default(0)
+  /// False when the last poll read only the newest slice of a large board: nothing may be expired or called stale from it.
+  lastIndexComplete Boolean @default(true)
   runs       IngestionRun[]
   jobs       Job[]
 
