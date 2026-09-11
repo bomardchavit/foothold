@@ -115,3 +115,26 @@ describe("ATS discovery guards", () => {
     expect(typeof discover.discoverSources).toBe("function");
   });
 });
+
+describe("index polling never expires from a partial view", () => {
+  it("workday marks a newest-first slice of a large board incomplete", async () => {
+    const { workday } = await import("@/lib/ingest/sources/workday");
+    const realFetch = globalThis.fetch;
+    // 3000 postings on the board, 20 per page: the poll reads only the newest pages.
+    globalThis.fetch = (async (url: RequestInfo | URL) => {
+      const u = String(url);
+      if (u.endsWith("/robots.txt")) return new Response("User-agent: *\nAllow: /", { status: 200 });
+      return new Response(JSON.stringify({ total: 3000, jobPostings: Array.from({ length: 20 }, (_, i) => ({ title: `Job ${i}`, externalPath: `/job/x/Job-${i}_R${i}`, bulletFields: [`R${i}`] })) }), { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    try {
+      const r = await workday.poll!({ slug: "acme.wd5/Careers", name: "Acme", etag: null });
+      expect(r.kind).toBe("index");
+      if (r.kind === "index") {
+        expect(r.complete).toBe(false); // fewer entries than the board's own total
+        expect(r.entries[0]).toEqual({ externalId: "R0", version: "/job/x/Job-0_R0" });
+      }
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
