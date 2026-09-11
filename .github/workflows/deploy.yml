@@ -35,11 +35,15 @@ jobs:
     name: deploy to fly.io
     needs: image
     runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+      - name: Skip until Fly is connected
+        if: ${{ env.FLY_API_TOKEN == '' }}
+        run: echo "FLY_API_TOKEN is not set, so nothing is deployed. Add it in Settings -> Secrets to turn this on."
       - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: ${{ env.FLY_API_TOKEN != '' }}
       - name: Deploy
         if: ${{ env.FLY_API_TOKEN != '' }}
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: flyctl deploy --remote-only --build-arg GIT_SHA=${{ github.sha }}

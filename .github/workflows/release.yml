@@ -44,6 +44,8 @@ jobs:
     name: extension zip
     needs: desktop
     runs-on: ubuntu-latest
+    env:
+      CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -56,7 +58,7 @@ jobs:
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: gh release upload "${GITHUB_REF_NAME}" apps/extension/release/*.zip --clobber
       - name: Publish to the Chrome Web Store
-        if: ${{ secrets.CHROME_CLIENT_ID != '' }}
+        if: ${{ env.CHROME_CLIENT_ID != '' }}
         env:
           CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
