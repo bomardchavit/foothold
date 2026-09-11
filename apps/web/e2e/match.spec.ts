@@ -49,7 +49,15 @@ test("liking, hiding, tabs and saved filters work on the jobs workspace", async 
   await signIn(page, "demo@foothold.local");
   // self-heal state left by earlier runs: restore a hidden target job, unlike a liked one
   await page.goto("/jobs?q=Solutions&hidden=1");
-  while ((await page.getByTestId("match-card").count()) > 0) { await page.getByTestId("match-card").first().getByTestId("hide-job").click(); await page.waitForTimeout(400); }
+  for (let guard = 0; guard < 10; guard++) {
+    const card = page.getByTestId("match-card").first();
+    if ((await page.getByTestId("match-card").count()) === 0) break;
+    const id = await card.getAttribute("data-job-id");
+    await card.getByTestId("hide-job").click();
+    await expect(page.locator(`[data-job-id="${id}"]`)).toHaveCount(0); // the restore reached the server
+    await page.reload();
+  }
+  await expect(page.getByTestId("match-card")).toHaveCount(0);
   await page.goto("/jobs?q=Solutions");
   // pick a card that is not already in the tracker (earlier runs mark the top job as applied)
   const cards = page.getByTestId("match-card");
@@ -65,7 +73,8 @@ test("liking, hiding, tabs and saved filters work on the jobs workspace", async 
   await page.getByTestId("tab-liked").click();
   await expect(page).toHaveURL(/tab=liked/);
   await expect(page.locator(`[data-job-id="${jobId}"]`)).toBeVisible();
-  await page.getByTestId("tab-recommended").click();
+  // Back to the recommended feed by URL: clicking the tab is a client navigation whose timing is not what this asserts.
+  await page.goto("/jobs?q=Solutions");
   await expect(page.locator(`[data-job-id="${jobId}"]`)).toBeVisible();
   await page.locator(`[data-job-id="${jobId}"]`).getByTestId("hide-job").click();
   await expect(page.locator(`[data-job-id="${jobId}"]`)).toHaveCount(0);

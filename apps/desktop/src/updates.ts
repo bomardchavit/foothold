@@ -1,11 +1,36 @@
-import { app, BrowserWindow, dialog } from "electron";
+import { app, BrowserWindow, dialog, shell } from "electron";
 import { autoUpdater } from "electron-updater";
 
 export type UpdateState = { status: "idle" | "checking" | "available" | "downloading" | "ready" | "error"; version?: string; percent?: number; message?: string };
 
 let state: UpdateState = { status: "idle" };
 let promptedFor: string | null = null;
+let availableVersion: string | null = null;
+let manualPromptFor: string | null = null;
 const SIX_HOURS = 6 * 60 * 60 * 1000;
+const RELEASES_URL = "https://github.com/bomardchavit/foothold/releases/latest";
+
+/**
+ * An unsigned macOS build downloads the update and then Squirrel refuses to install it ("code signature did not
+ * pass validation"). Rather than fail silently, point the user at the download that does work. Signed builds
+ * never reach this path.
+ */
+async function offerManualUpdate(getWindow: () => BrowserWindow | null, version: string, reason: string) {
+  if (manualPromptFor === version) return;
+  manualPromptFor = version;
+  console.log(`[updates] install blocked for ${version}: ${reason}`);
+  const opts = {
+    type: "info" as const,
+    buttons: ["Download it", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+    message: `Foothold ${version} is available`,
+    detail: "This copy cannot update itself, so it has to be replaced by hand. The download page has the current build.",
+  };
+  const win = getWindow();
+  const { response } = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+  if (response === 0) await shell.openExternal(RELEASES_URL);
+}
 
 export function currentUpdateState(): UpdateState { return state; }
 
@@ -25,9 +50,13 @@ export function initUpdates(getWindow: () => BrowserWindow | null) {
 
   autoUpdater.on("checking-for-update", () => broadcast({ status: "checking" }));
   autoUpdater.on("update-not-available", () => broadcast({ status: "idle" }));
-  autoUpdater.on("update-available", (i) => broadcast({ status: "downloading", version: i.version, percent: 0 }));
+  autoUpdater.on("update-available", (i) => { availableVersion = i.version; broadcast({ status: "downloading", version: i.version, percent: 0 }); });
   autoUpdater.on("download-progress", (p) => broadcast({ status: "downloading", percent: Math.round(p.percent) }));
-  autoUpdater.on("error", (e) => broadcast({ status: "error", message: e instanceof Error ? e.message : String(e) }));
+  autoUpdater.on("error", (e) => {
+    const message = e instanceof Error ? e.message : String(e);
+    broadcast({ status: "error", message });
+    if (availableVersion && /signature|codesign|ShipIt|SQRL/i.test(message)) void offerManualUpdate(getWindow, availableVersion, message);
+  });
   autoUpdater.on("update-downloaded", async (i) => {
     broadcast({ status: "ready", version: i.version });
     if (promptedFor === i.version) return;
