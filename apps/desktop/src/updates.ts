@@ -33,14 +33,15 @@ export function initUpdates(getWindow: () => BrowserWindow | null) {
     if (promptedFor === i.version) return;
     promptedFor = i.version;
     const win = getWindow();
-    const { response } = await dialog.showMessageBox(win ?? undefined!, {
-      type: "info",
+    const opts = {
+      type: "info" as const,
       buttons: ["Restart now", "Later"],
       defaultId: 0,
       cancelId: 1,
       message: `Foothold ${i.version} is ready`,
       detail: "The update installs when you restart. Nothing you are working on is stored in the app itself.",
-    });
+    };
+    const { response } = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
     if (response === 0) { setImmediate(() => autoUpdater.quitAndInstall()); }
   });
 

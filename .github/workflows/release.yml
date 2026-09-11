@@ -23,7 +23,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
-      - run: npm ci
+      - name: Install (retry once; the Electron download is flaky)
+        run: npm ci || npm ci
       # electron-builder treats an empty CSC_LINK as a path, so the signing variables are only exported when
       # the certificate actually exists. Without them the build still publishes: macOS users get a Gatekeeper
       # warning and have to update by downloading, which is the honest trade until a Developer ID is added.
