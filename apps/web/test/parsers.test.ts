@@ -72,3 +72,13 @@ describe("heuristic job parser", () => {
     expect(s.required).toBe("A"); expect(s.preferred).toBe("B"); expect(s.boilerplate).toBe("C"); expect(s.other).toBe("D");
   });
 });
+
+describe("cleanTitle", () => {
+  it("drops trailing separators and an unclosed parenthetical the employer left in the title", async () => {
+    const { cleanTitle } = await import("@/lib/ingest/normalize");
+    expect(cleanTitle("Senior Software Engineer, Backend (Institutional - ")).toBe("Senior Software Engineer, Backend");
+    expect(cleanTitle("Staff Engineer - ")).toBe("Staff Engineer");
+    expect(cleanTitle("Software Engineer (Remote)")).toBe("Software Engineer (Remote)");
+    expect(cleanTitle("Product Manager, Connect")).toBe("Product Manager, Connect");
+  });
+});

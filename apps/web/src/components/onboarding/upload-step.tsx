@@ -63,7 +63,7 @@ export function UploadStep({ hasExisting, redirectTo = "/onboarding?step=review"
       {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
         {hasExisting && <Button variant="outline" size="sm" onClick={() => router.push(redirectTo)}>Keep my current profile</Button>}
-        <Button variant="ghost" size="sm" onClick={async () => { await startBlankProfileAction(); router.push("/onboarding?step=review"); }}>Start from a blank profile instead</Button>
+        <Button variant="outline" onClick={async () => { await startBlankProfileAction(); router.push("/onboarding?step=review"); }}>Start from a blank profile instead</Button>
       </div>
     </div>
   );

@@ -12,6 +12,7 @@ import { saveProfileAction } from "@/app/actions/profile";
 import { TagInput } from "@/components/profile/tag-input";
 import { trackClient } from "@/components/providers/posthog-provider";
 import { EVENTS } from "@/lib/analytics/events";
+import { FieldError, scrollToFirstError, toErrorMap, type ErrorMap } from "@/components/profile/form-errors";
 import { toast } from "sonner";
 
 type Exp = ProfileEdit["experiences"][number];
@@ -20,8 +21,12 @@ type Proj = ProfileEdit["projects"][number];
 
 export function ProfileEditor({ initial, nextHref, compact = false }: { initial: ProfileEdit; nextHref?: string; compact?: boolean }) {
   const [p, setP] = useState<ProfileEdit>(initial);
+  const [errors, setErrors] = useState<ErrorMap>({});
   const [pending, start] = useTransition();
   const router = useRouter();
+  /** Clears the error for a path (and for the whole item when a sub-field changes) as soon as the person edits it. */
+  const clear = (path: string) => setErrors((e) => { if (!e[path]) return e; const n = { ...e }; delete n[path]; return n; });
+  const err = (path: string) => errors[path];
   const set = <K extends keyof ProfileEdit>(k: K, v: ProfileEdit[K]) => setP((x) => ({ ...x, [k]: v }));
   const upExp = (i: number, patch: Partial<Exp>) => set("experiences", p.experiences.map((e, j) => (j === i ? { ...e, ...patch } : e)));
   const upEdu = (i: number, patch: Partial<Edu>) => set("educations", p.educations.map((e, j) => (j === i ? { ...e, ...patch } : e)));
@@ -30,7 +35,8 @@ export function ProfileEditor({ initial, nextHref, compact = false }: { initial:
   function submit() {
     start(async () => {
       const r = await saveProfileAction(p);
-      if (!r.ok) { toast.error(r.error); return; }
+      if (!r.ok) { const map = toErrorMap(r.issues); setErrors(map); toast.error(r.error); requestAnimationFrame(() => scrollToFirstError(map)); return; }
+      setErrors({});
       toast.success("Profile saved");
       trackClient(EVENTS.onboarding_step_completed, { step: "review" });
       if (nextHref) router.push(nextHref); else router.refresh();
@@ -42,17 +48,17 @@ export function ProfileEditor({ initial, nextHref, compact = false }: { initial:
       <Card>
         <CardHeader><CardTitle>Contact</CardTitle></CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <Field label="Full name" value={p.fullName} onChange={(v) => set("fullName", v)} testId="full-name" />
-          <Field label="Email" value={p.email} onChange={(v) => set("email", v)} type="email" />
-          <Field label="Phone" value={p.phone} onChange={(v) => set("phone", v)} />
-          <Field label="Location" value={p.location} onChange={(v) => set("location", v)} placeholder="City, ST" />
-          <Field label="LinkedIn" value={p.linkedinUrl} onChange={(v) => set("linkedinUrl", v)} />
-          <Field label="GitHub" value={p.githubUrl} onChange={(v) => set("githubUrl", v)} />
-          <Field label="Website" value={p.websiteUrl} onChange={(v) => set("websiteUrl", v)} />
-          <Field label="Headline" value={p.headline} onChange={(v) => set("headline", v)} placeholder="e.g. Backend engineer, payments" />
+          <Field label="Full name" path="fullName" error={err("fullName")} value={p.fullName} onChange={(v) => { clear("fullName"); set("fullName", v); }} testId="full-name" />
+          <Field label="Email" path="email" error={err("email")} value={p.email} onChange={(v) => { clear("email"); set("email", v); }} type="email" />
+          <Field label="Phone" path="phone" error={err("phone")} value={p.phone} onChange={(v) => { clear("phone"); set("phone", v); }} />
+          <Field label="Location" path="location" error={err("location")} value={p.location} onChange={(v) => { clear("location"); set("location", v); }} placeholder="City, ST" />
+          <Field label="LinkedIn" path="linkedinUrl" error={err("linkedinUrl")} value={p.linkedinUrl} onChange={(v) => { clear("linkedinUrl"); set("linkedinUrl", v); }} />
+          <Field label="GitHub" path="githubUrl" error={err("githubUrl")} value={p.githubUrl} onChange={(v) => { clear("githubUrl"); set("githubUrl", v); }} />
+          <Field label="Website" path="websiteUrl" error={err("websiteUrl")} value={p.websiteUrl} onChange={(v) => { clear("websiteUrl"); set("websiteUrl", v); }} />
+          <Field label="Headline" path="headline" error={err("headline")} value={p.headline} onChange={(v) => { clear("headline"); set("headline", v); }} placeholder="e.g. Backend engineer, payments" />
           <div className="sm:col-span-2">
-            <Label>Summary</Label>
-            <Textarea className="mt-1" rows={3} value={p.summary ?? ""} onChange={(e) => set("summary", e.target.value || null)} />
+            <Label htmlFor="summary">Summary</Label>
+            <Textarea id="summary" className="mt-1" rows={3} value={p.summary ?? ""} onChange={(e) => set("summary", e.target.value || null)} />
           </div>
         </CardContent>
       </Card>
@@ -64,20 +70,20 @@ export function ProfileEditor({ initial, nextHref, compact = false }: { initial:
           {p.experiences.map((e, i) => (
             <div key={e.id ?? i} className="rounded-lg border p-4" data-testid="experience-item">
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Title" value={e.title} onChange={(v) => upExp(i, { title: v ?? "" })} testId="experience-title" />
-                <Field label="Company" value={e.company} onChange={(v) => upExp(i, { company: v ?? "" })} testId="experience-company" />
-                <Field label="Location" value={e.location} onChange={(v) => upExp(i, { location: v })} />
+                <Field label="Title" path={`experiences.${i}.title`} error={err(`experiences.${i}.title`)} value={e.title} onChange={(v) => { clear(`experiences.${i}.title`); upExp(i, { title: v ?? "" }); }} testId="experience-title" />
+                <Field label="Company" path={`experiences.${i}.company`} error={err(`experiences.${i}.company`)} value={e.company} onChange={(v) => { clear(`experiences.${i}.company`); upExp(i, { company: v ?? "" }); }} testId="experience-company" />
+                <Field label="Location" path={`experiences.${i}.location`} error={err(`experiences.${i}.location`)} value={e.location} onChange={(v) => { clear(`experiences.${i}.location`); upExp(i, { location: v }); }} />
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="Start (YYYY-MM)" value={e.startDate} onChange={(v) => upExp(i, { startDate: v })} placeholder="2022-06" />
-                  <Field label="End (YYYY-MM)" value={e.isCurrent ? "" : e.endDate} onChange={(v) => upExp(i, { endDate: v })} placeholder="2024-01" disabled={e.isCurrent} />
+                  <Field label="Start (YYYY-MM)" path={`experiences.${i}.startDate`} error={err(`experiences.${i}.startDate`)} value={e.startDate} onChange={(v) => { clear(`experiences.${i}.startDate`); upExp(i, { startDate: v }); }} placeholder="2022-06" />
+                  <Field label="End (YYYY-MM)" path={`experiences.${i}.endDate`} error={err(`experiences.${i}.endDate`)} value={e.isCurrent ? "" : e.endDate} onChange={(v) => { clear(`experiences.${i}.endDate`); upExp(i, { endDate: v }); }} placeholder="2024-01" disabled={e.isCurrent} />
                 </div>
                 <label className="flex items-center gap-2 text-sm"><Checkbox checked={e.isCurrent} onCheckedChange={(v) => upExp(i, { isCurrent: Boolean(v) })} /> I currently work here</label>
               </div>
               <div className="mt-3 space-y-2">
                 <Label>Bullets</Label>
                 {e.bullets.map((b, j) => (
-                  <div key={b.id ?? j} className="flex gap-2">
-                    <Textarea rows={2} value={b.text} onChange={(ev) => upExp(i, { bullets: e.bullets.map((x, k) => (k === j ? { ...x, text: ev.target.value } : x)) })} className="min-h-0" data-testid="bullet-text" />
+                  <div key={b.id ?? j} className="flex gap-2" data-field={`experiences.${i}.bullets.${j}.text`}>
+                    <div className="min-w-0 flex-1"><Textarea rows={2} value={b.text} aria-invalid={Boolean(err(`experiences.${i}.bullets.${j}.text`)) || undefined} onChange={(ev) => { clear(`experiences.${i}.bullets.${j}.text`); upExp(i, { bullets: e.bullets.map((x, k) => (k === j ? { ...x, text: ev.target.value } : x)) }); }} className="min-h-0" data-testid="bullet-text" /><FieldError id={`err-exp-${i}-b-${j}`} message={err(`experiences.${i}.bullets.${j}.text`)} /></div>
                     <Button type="button" variant="ghost" size="sm" aria-label="Remove bullet" onClick={() => upExp(i, { bullets: e.bullets.filter((_, k) => k !== j) })}>×</Button>
                   </div>
                 ))}
@@ -94,12 +100,12 @@ export function ProfileEditor({ initial, nextHref, compact = false }: { initial:
         <CardContent className="space-y-4">
           {p.educations.map((e, i) => (
             <div key={e.id ?? i} className="grid gap-3 rounded-lg border p-4 sm:grid-cols-3" data-testid="education-item">
-              <Field label="School" value={e.school} onChange={(v) => upEdu(i, { school: v ?? "" })} />
-              <Field label="Degree" value={e.degree} onChange={(v) => upEdu(i, { degree: v })} placeholder="B.S." />
-              <Field label="Field" value={e.field} onChange={(v) => upEdu(i, { field: v })} placeholder="Computer Science" />
-              <Field label="Start" value={e.startDate} onChange={(v) => upEdu(i, { startDate: v })} placeholder="2016-08" />
-              <Field label="End" value={e.endDate} onChange={(v) => upEdu(i, { endDate: v })} placeholder="2020-05" />
-              <Field label="GPA" value={e.gpa} onChange={(v) => upEdu(i, { gpa: v })} />
+              <Field label="School" path={`educations.${i}.school`} error={err(`educations.${i}.school`)} value={e.school} onChange={(v) => { clear(`educations.${i}.school`); upEdu(i, { school: v ?? "" }); }} />
+              <Field label="Degree" path={`educations.${i}.degree`} error={err(`educations.${i}.degree`)} value={e.degree} onChange={(v) => { clear(`educations.${i}.degree`); upEdu(i, { degree: v }); }} placeholder="B.S." />
+              <Field label="Field" path={`educations.${i}.field`} error={err(`educations.${i}.field`)} value={e.field} onChange={(v) => { clear(`educations.${i}.field`); upEdu(i, { field: v }); }} placeholder="Computer Science" />
+              <Field label="Start" path={`educations.${i}.startDate`} error={err(`educations.${i}.startDate`)} value={e.startDate} onChange={(v) => { clear(`educations.${i}.startDate`); upEdu(i, { startDate: v }); }} placeholder="2016-08" />
+              <Field label="End" path={`educations.${i}.endDate`} error={err(`educations.${i}.endDate`)} value={e.endDate} onChange={(v) => { clear(`educations.${i}.endDate`); upEdu(i, { endDate: v }); }} placeholder="2020-05" />
+              <Field label="GPA" path={`educations.${i}.gpa`} error={err(`educations.${i}.gpa`)} value={e.gpa} onChange={(v) => { clear(`educations.${i}.gpa`); upEdu(i, { gpa: v }); }} />
               <div className="sm:col-span-3 text-right"><Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => set("educations", p.educations.filter((_, k) => k !== i))}>Remove</Button></div>
             </div>
           ))}
@@ -113,9 +119,9 @@ export function ProfileEditor({ initial, nextHref, compact = false }: { initial:
             {p.projects.map((pr, i) => (
               <div key={pr.id ?? i} className="rounded-lg border p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Name" value={pr.name} onChange={(v) => upProj(i, { name: v ?? "" })} />
-                  <Field label="URL" value={pr.url} onChange={(v) => upProj(i, { url: v })} />
-                  <div className="sm:col-span-2"><Field label="Description / technologies" value={pr.description} onChange={(v) => upProj(i, { description: v })} /></div>
+                  <Field label="Name" path={`projects.${i}.name`} error={err(`projects.${i}.name`)} value={pr.name} onChange={(v) => { clear(`projects.${i}.name`); upProj(i, { name: v ?? "" }); }} />
+                  <Field label="URL" path={`projects.${i}.url`} error={err(`projects.${i}.url`)} value={pr.url} onChange={(v) => { clear(`projects.${i}.url`); upProj(i, { url: v }); }} />
+                  <div className="sm:col-span-2"><Field label="Description / technologies" path={`projects.${i}.description`} error={err(`projects.${i}.description`)} value={pr.description} onChange={(v) => { clear(`projects.${i}.description`); upProj(i, { description: v }); }} /></div>
                 </div>
                 <div className="mt-3 space-y-2">
                   {pr.bullets.map((b, j) => (
@@ -135,8 +141,9 @@ export function ProfileEditor({ initial, nextHref, compact = false }: { initial:
 
       <Card>
         <CardHeader><CardTitle>Skills</CardTitle></CardHeader>
-        <CardContent>
-          <TagInput value={p.skills} onChange={(v) => set("skills", v)} placeholder="Type a skill and press Enter (e.g. PostgreSQL)" testId="skills-input" />
+        <CardContent data-field="skills">
+          <TagInput value={p.skills} onChange={(v) => { clear("skills"); set("skills", v); }} placeholder="Type a skill and press Enter (e.g. PostgreSQL)" testId="skills-input" />
+          <FieldError id="err-skills" message={err("skills")} />
           <p className="mt-2 text-xs text-muted-foreground">{p.skills.length} skills. Only skills listed here (or evidenced in your bullets) count toward matches.</p>
         </CardContent>
       </Card>
@@ -148,11 +155,13 @@ export function ProfileEditor({ initial, nextHref, compact = false }: { initial:
   );
 }
 
-function Field({ label, value, onChange, type = "text", placeholder, disabled, testId }: { label: string; value: string | null | undefined; onChange: (v: string | null) => void; type?: string; placeholder?: string; disabled?: boolean; testId?: string }) {
+function Field({ label, path, error, value, onChange, type = "text", placeholder, disabled, testId }: { label: string; path: string; error?: string; value: string | null | undefined; onChange: (v: string | null) => void; type?: string; placeholder?: string; disabled?: boolean; testId?: string }) {
+  const id = `f-${path.replace(/\W+/g, "-")}`;
   return (
-    <div>
-      <Label>{label}</Label>
-      <Input className="mt-1" type={type} value={value ?? ""} placeholder={placeholder} disabled={disabled} onChange={(e) => onChange(e.target.value || null)} data-testid={testId} />
+    <div data-field={path}>
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} className="mt-1" type={type} value={value ?? ""} placeholder={placeholder} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={error ? `${id}-err` : undefined} onChange={(e) => onChange(e.target.value || null)} data-testid={testId} />
+      <FieldError id={`${id}-err`} message={error} />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { JobSource } from "@prisma/client";
-import { normalizeCompanyName, normalizeText, parseLocation, normalizeIndustry, simhash, hammingDistance, US_STATES, type NormalizedJob } from "@foothold/shared";
+import { normalizeCompanyName, normalizeText, parseLocation, normalizeIndustry, simhash, hammingDistance, US_STATES, type NormalizedJob, industryForDomain } from "@foothold/shared";
 import { prisma } from "../db";
 import { parseJob } from "../llm/tasks/parseJob";
 import { computeQualityFlags, QUALITY_FLAGS } from "./quality";
@@ -34,6 +34,17 @@ export function countryFromPlaces(raw: string): string[] | null {
  * Country scope (JOBS_COUNTRIES, default US): keep jobs placed in an allowed country and jobs we cannot place at all.
  * A posting that names a foreign place is out even when it is remote or hybrid ("Remote India (Hybrid)" is not a US job).
  */
+/** Titles arrive as the employer typed them; trim trailing separators and an unclosed parenthetical ("Backend (Institutional - " → "Backend"). */
+export function cleanTitle(raw: string): string {
+  let t = raw.replace(/\s+/g, " ").trim();
+  for (let i = 0; i < 3; i++) {
+    const open = (t.match(/\(/g) ?? []).length, close = (t.match(/\)/g) ?? []).length;
+    if (open > close) t = t.replace(/\s*\([^)]*$/, "");
+    t = t.replace(/[\s\-–—,/&|:;(]+$/, "").trim();
+  }
+  return t || raw.trim();
+}
+
 export function inScope(loc: { country: string | null; isRemote: boolean; raw: string }, isRemote: boolean): boolean {
   if (!ALLOWED_COUNTRIES.length || ALLOWED_COUNTRIES.includes("ALL")) return true;
   const allowed = (c: string) => ALLOWED_COUNTRIES.includes(c);
@@ -96,6 +107,7 @@ export async function retireJobs(ids: string[]): Promise<{ deleted: number; clos
 }
 
 export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob): Promise<{ id: string; inserted: boolean; changed: boolean; skipped?: "out-of-scope" }> {
+  nj = { ...nj, title: cleanTitle(nj.title) };
   const description = nj.description.trim();
   const locEarly = parseLocation(nj.location);
   if (!inScope(locEarly, Boolean(nj.isRemote))) {
@@ -110,10 +122,11 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
   let company = await prisma.company.findUnique({ where: { normalizedName } });
   let newCompany = false;
   if (!company) {
-    company = await prisma.company.create({ data: { name: nj.company.trim(), normalizedName, domain: nj.companyDomain ?? null, industry: normalizeIndustry(nj.companyIndustry) ?? null, size: nj.companySize ?? null } });
+    company = await prisma.company.create({ data: { name: nj.company.trim(), normalizedName, domain: nj.companyDomain ?? null, industry: industryForDomain(nj.companyDomain) ?? normalizeIndustry(nj.companyIndustry) ?? null, size: nj.companySize ?? null } });
     newCompany = true;
-  } else if ((!company.domain && nj.companyDomain) || (!company.industry && nj.companyIndustry)) {
-    company = await prisma.company.update({ where: { id: company.id }, data: { domain: company.domain ?? nj.companyDomain ?? null, industry: company.industry ?? normalizeIndustry(nj.companyIndustry) ?? null } });
+  } else if ((!company.domain && nj.companyDomain) || (!company.industry && nj.companyIndustry) || (industryForDomain(company.domain ?? nj.companyDomain) ?? company.industry) !== company.industry) {
+    const domain = company.domain ?? nj.companyDomain ?? null;
+    company = await prisma.company.update({ where: { id: company.id }, data: { domain, industry: industryForDomain(domain) ?? company.industry ?? normalizeIndustry(nj.companyIndustry) ?? null } });
   }
   if (newCompany) await refreshCompanySignal(company.id).catch((e) => console.warn("[h1b] signal failed", e));
 
@@ -141,7 +154,7 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
   const isRemote = workplaceType === "REMOTE"; // hybrid and onsite postings are never remote, whatever the office list says
   const employmentType = nj.employmentType ?? parsed.employmentType;
   const postedAt = nj.postedAt ? new Date(nj.postedAt) : existing?.postedAt ?? new Date();
-  const industry = normalizeIndustry(parsed.industry) ?? company.industry ?? null;
+  const industry = industryForDomain(company.domain) ?? normalizeIndustry(parsed.industry) ?? company.industry ?? null;
   const salaryMin = nj.salaryMin ?? parsed.salaryMin ?? null;
   const salaryMax = nj.salaryMax ?? parsed.salaryMax ?? null;
   const salaryPeriod = nj.salaryPeriod ?? parsed.salaryPeriod ?? null;

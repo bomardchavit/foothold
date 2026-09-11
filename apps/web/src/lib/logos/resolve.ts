@@ -124,9 +124,25 @@ export async function resolveMissingLogos(limit = 50, opts: { retry?: boolean } 
     : { logoKey: null };
   const rows = await prisma.company.findMany({ where, select: { id: true, logoKey: true, domain: true }, take: limit, orderBy: { createdAt: "desc" } });
   const companies = rows.filter((c) => !c.logoKey || !isPlaceholderDomain(c.domain));
-  let n = 0;
+  let n = opts.retry ? await revalidateStoredLogos().catch(() => 0) : 0;
   for (const c of companies) {
     try { await resolveCompanyLogo(c.id); n++; } catch (e) { console.warn("[logos] failed", c.id, e instanceof Error ? e.message : e); }
+  }
+  return n;
+}
+
+/**
+ * Re-check stored real logos against the current shape rules (older runs accepted 1200×630 share banners) and re-resolve
+ * the ones that fail; unreadable files count as failed. Returns the number re-resolved.
+ */
+export async function revalidateStoredLogos(limit = 200): Promise<number> {
+  const rows = await prisma.company.findMany({ where: { logoKey: { not: null }, NOT: { logoKey: { endsWith: GENERATED_SUFFIX } } }, select: { id: true, name: true, logoKey: true }, take: limit, orderBy: { logoFetchedAt: "asc" } });
+  let n = 0;
+  for (const c of rows) {
+    let ok = false;
+    try { const bytes = await getFile(c.logoKey!); const info = sniffImage(bytes); ok = Boolean(info && acceptableShape(info, MIN_SIDE) && bytes.length <= MAX_BYTES); } catch { ok = false; }
+    if (ok) continue;
+    try { await resolveCompanyLogo(c.id); n++; console.log(`[logos] replaced ${c.name}: stored ${c.logoKey} failed the shape check`); } catch (e) { console.warn("[logos] revalidate failed", c.id, e instanceof Error ? e.message : e); }
   }
   return n;
 }

@@ -1,3 +1,4 @@
+import { PageHeader, PAGE_CONTAINER } from "@/components/layout/page-header";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
 import { requireOnboarded } from "@/lib/session";
@@ -21,9 +22,8 @@ export default async function InterviewPage() {
   for (const c of convs) if (c.jobId && !prepAt.has(c.jobId)) prepAt.set(c.jobId, c.updatedAt);
   const items: InterviewItem[] = base.map((b) => ({ ...b, prepStartedAgo: prepAt.has(b.id) ? formatDistanceToNowStrict(prepAt.get(b.id)!, { addSuffix: true }) : null }));
   return (
-    <div className="mx-auto max-w-3xl px-4 pt-6 sm:px-6">
-      <h1 className="text-3xl">Interview prep</h1>
-      <p className="mt-1 text-muted-foreground">Belay builds likely questions from the posting and points at the story in your profile to use for each. {apps.length ? "Showing your active applications." : "No active applications yet, so here are your top matches."} <Link className="underline" href="/tracker">Tracker</Link></p>
+    <div className={PAGE_CONTAINER}>
+      <PageHeader title="Interview prep" description={<>Belay builds likely questions from the posting and points at the story in your profile to use for each. {apps.length ? "Showing your active applications." : "No active applications yet, so here are your top matches."} <Link className="underline" href="/tracker">Tracker</Link></>} />
       <InterviewList items={items} />
     </div>
   );

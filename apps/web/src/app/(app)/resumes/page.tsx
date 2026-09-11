@@ -1,3 +1,4 @@
+import { PageHeader, PAGE_CONTAINER } from "@/components/layout/page-header";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
 import { requireOnboarded } from "@/lib/session";
@@ -23,11 +24,8 @@ export default async function ResumesPage() {
   }
   const rows = [...groups.values()].sort((a, b) => (a.latest.kind === b.latest.kind ? b.latest.createdAt.getTime() - a.latest.createdAt.getTime() : a.latest.kind === "BASE" ? 1 : -1));
   return (
-    <div className="mx-auto max-w-4xl px-4 pt-6 sm:px-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-3xl">Résumés</h1><p className="mt-1 text-muted-foreground">A base résumé built from your profile, plus one tailored version per role. Every change is shown; unverified additions are labeled.</p></div>
-        <CreateBaseButton hasBase={groups.has("base")} />
-      </div>
+    <div className={PAGE_CONTAINER}>
+      <PageHeader title="Résumés" description="A base résumé built from your profile, plus one tailored version per role. Every change is shown; unverified additions are labeled." actions={<CreateBaseButton hasBase={groups.has("base")} />} />
       {rows.length === 0 ? (
         <div className="mt-8 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground" data-testid="resumes-empty">No résumés yet. Build your base résumé, or open a job and choose “Tailor my résumé for this role”.</div>
       ) : (

@@ -59,7 +59,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   providers,
-  pages: { signIn: "/sign-in", verifyRequest: "/sign-in?sent=1", error: "/sign-in" },
+  pages: { signIn: "/sign-in", verifyRequest: "/sign-in/sent", error: "/sign-in" },
   trustHost: true,
   events: {
     createUser({ user }) { if (user.id) track(user.id, EVENTS.user_signed_up, { method: "email-or-oauth" }); },

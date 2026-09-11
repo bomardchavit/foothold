@@ -1,3 +1,4 @@
+import { PageHeader } from "@/components/layout/page-header";
 import { requireOnboarded } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { KanbanBoard, type BoardApplication, type BoardResume } from "@/components/tracker/kanban-board";
@@ -19,11 +20,8 @@ export default async function TrackerPage() {
     notes: a.notes.map((n) => ({ id: n.id, body: n.body, at: n.createdAt.toISOString() })),
   }));
   return (
-    <div className="px-4 pt-6 sm:px-6">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div><h1 className="text-3xl">Application tracker</h1><p className="mt-1 text-sm text-muted-foreground">Every status change is timestamped. Drag a card between columns or open it to change its status, attach a résumé and add notes.</p></div>
-        <p className="text-sm text-muted-foreground">{data.length} application{data.length === 1 ? "" : "s"}</p>
-      </div>
+    <div className="w-full px-4 pt-6 sm:px-6">
+      <PageHeader className="mb-4 max-w-[1120px]" title="Application tracker" description="Every status change is timestamped. Drag a card between columns or open it to change its status, attach a résumé and add notes." actions={<p className="text-sm text-muted-foreground">{data.length} application{data.length === 1 ? "" : "s"}</p>} />
       <KanbanBoard applications={data} resumes={docs.map((d): BoardResume => ({ id: d.id, title: d.title, kind: d.kind, jobId: d.jobId, createdAt: d.createdAt.toISOString() }))} />
     </div>
   );

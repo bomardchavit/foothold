@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/layout/page-header";
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { OutreachKind } from "@prisma/client";
@@ -32,10 +33,8 @@ export function NetworkClient({ contacts, jobs, drafts, initialContactId, initia
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_420px]">
       <div>
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-          <div><h1 className="text-3xl">Network</h1><p className="mt-1 text-sm text-muted-foreground">Your own contacts only: a LinkedIn connections export or people you add by hand. We never scrape.</p></div>
-          <div className="flex gap-2"><ImportDialog onDone={() => router.refresh()} /><ContactDialog onSaved={() => router.refresh()} onDeleted={(id) => { if (selected === id) { setSelected(null); setDraft(null); } router.refresh(); }} /></div>
-        </div>
+        <PageHeader className="mb-4" title="Network" description="Your own contacts only: a LinkedIn connections export or people you add by hand. We never scrape."
+          actions={<><ImportDialog onDone={() => router.refresh()} /><ContactDialog onSaved={() => router.refresh()} onDeleted={(id) => { if (selected === id) { setSelected(null); setDraft(null); } router.refresh(); }} /></>} />
         <Input placeholder="Search name, company, title…" value={q} onChange={(e) => setQ(e.target.value)} className="mb-3 max-w-sm" data-testid="contact-search" />
         {contacts.length === 0 ? (
           <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground" data-testid="contacts-empty">No contacts yet. Export your LinkedIn connections (Settings → Data privacy → Get a copy of your data → Connections) and import the CSV here.</div>

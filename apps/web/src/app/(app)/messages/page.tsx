@@ -1,3 +1,4 @@
+import { PageHeader, PAGE_CONTAINER } from "@/components/layout/page-header";
 import Link from "next/link";
 import { formatDistanceToNowStrict } from "date-fns";
 import { requireOnboarded } from "@/lib/session";
@@ -20,11 +21,10 @@ export default async function MessagesPage() {
     ...digests.map((d) => ({ at: d.sentAt, text: `Daily digest sent with ${d.jobIds.length} new matches`, href: "/jobs" })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
   return (
-    <div className="mx-auto max-w-3xl px-6 pt-6">
-      <h1 className="text-3xl">Messages</h1>
-      <p className="mt-1 text-muted-foreground">New matches, application updates and digests.</p>
-      {items.length === 0 ? <p className="mt-6 rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">Nothing yet. New matches and tracker updates land here.</p> : (
-        <ul className="mt-6 divide-y rounded-2xl border bg-card">
+    <div className={PAGE_CONTAINER}>
+      <PageHeader title="Messages" description="New matches, application updates and digests." />
+      {items.length === 0 ? <p className="max-w-3xl rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">Nothing yet. New matches and tracker updates land here.</p> : (
+        <ul className="max-w-3xl divide-y rounded-2xl border bg-card">
           {items.map((it, i) => <li key={i} className="flex items-center justify-between gap-4 p-4 text-sm"><Link href={it.href} className="hover:underline">{it.text}</Link><span className="shrink-0 text-xs text-muted-foreground">{formatDistanceToNowStrict(it.at, { addSuffix: true })}</span></li>)}
         </ul>
       )}

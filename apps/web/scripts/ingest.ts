@@ -7,6 +7,7 @@
 //   npm run ingest -- bootstrap [n]         register + ingest the curated US companies (first n)
 //   npm run ingest -- logos [n] [--retry]   give every company a logo (site icon → favicon services → generated mark);
 //                                           --retry also re-probes companies still on a generated mark
+//   npm run ingest -- logos --revalidate    re-check stored logos against the shape rules and replace banners/broken files
 //   npm run ingest -- prune                 retire jobs outside JOBS_COUNTRIES
 //   npm run ingest -- dedupe                merge one-posting-per-office duplicates into one row
 //   npm run ingest -- export                write data/exports/jobs.json (normalized dump)
@@ -58,8 +59,13 @@ async function main() {
       return;
     }
     if (cmd === "bootstrap") { const { bootstrapUsCompanies } = await import("../src/lib/ingest/run"); await bootstrapUsCompanies({ limit: arg ? Number(arg) : undefined }); return; }
-    if (cmd === "logos") { const { resolveMissingLogos } = await import("../src/lib/logos/resolve"); console.log("resolved", await resolveMissingLogos(arg ? Number(arg) : 200, { retry }), "logos"); return; }
+    if (cmd === "logos") {
+      const { resolveMissingLogos, revalidateStoredLogos } = await import("../src/lib/logos/resolve");
+      if (process.argv.includes("--revalidate")) { console.log("replaced", await revalidateStoredLogos(), "stored logos that failed the shape check"); return; }
+      console.log("resolved", await resolveMissingLogos(arg ? Number(arg) : 200, { retry }), "logos"); return;
+    }
     if (cmd === "prune") { const { pruneOutOfScope } = await import("../src/lib/ingest/run"); console.log("retired", await pruneOutOfScope(), "out-of-scope jobs"); return; }
+    if (cmd === "industries") { const { syncKnownIndustries } = await import("../src/lib/ingest/run"); console.log("fixed", await syncKnownIndustries(), "company industries"); return; }
     if (cmd === "dedupe") { const { mergeDuplicatePostings } = await import("../src/lib/ingest/run"); console.log("merged", await mergeDuplicatePostings(), "duplicate rows"); return; }
     if (cmd === "careers") { if (!arg) throw new Error("usage: careers <careers-url>"); await runKindSlug("CAREERS", arg); return; }
     const [k, ...rest] = cmd.split(":");

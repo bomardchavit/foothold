@@ -1,5 +1,5 @@
 import type { JobSource, JobSourceKind } from "@prisma/client";
-import { hammingDistance, parseLocation } from "@foothold/shared";
+import { hammingDistance, parseLocation, industryForDomain } from "@foothold/shared";
 import { prisma } from "../db";
 import { ADAPTERS } from "./sources";
 import { upsertNormalizedJob, retireJobs, inScope, mergeLocations } from "./normalize";
@@ -69,6 +69,21 @@ export async function ingestAllJob() {
   await pruneOutOfScope();
   await mergeDuplicatePostings().catch((e) => console.warn("[ingest] merge failed", e instanceof Error ? e.message : e));
   await resolveMissingLogos(100, { retry: true }).catch(() => 0);
+  await syncKnownIndustries().catch((e) => console.warn("[ingest] industry sync failed", e instanceof Error ? e.message : e));
+}
+
+/** Curated employer industries beat keyword guesses: rewrite Company.industry (and its jobs) wherever the stored value disagrees. */
+export async function syncKnownIndustries(): Promise<number> {
+  const companies = await prisma.company.findMany({ where: { domain: { not: null } }, select: { id: true, domain: true, industry: true } });
+  let fixed = 0;
+  for (const c of companies) {
+    const known = industryForDomain(c.domain);
+    if (!known || known === c.industry) continue;
+    await prisma.company.update({ where: { id: c.id }, data: { industry: known } });
+    await prisma.job.updateMany({ where: { companyId: c.id }, data: { industry: known } });
+    fixed++;
+  }
+  return fixed;
 }
 
 /** Retire postings whose location is outside JOBS_COUNTRIES (default US). Remote and unplaceable jobs stay. Batched by cursor. */

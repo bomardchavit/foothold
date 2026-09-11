@@ -46,7 +46,7 @@ export function ResumeRowMenu({ id, title, olderVersions, afterDelete }: { id: s
       <ConfirmDialog
         open={confirm === "delete"} onOpenChange={(o) => !o && setConfirm(null)} title="Delete this résumé?"
         description={`“${title}” is removed. Applications that used it keep their status but lose the attachment. This cannot be undone.`} confirmLabel="Delete"
-        onConfirm={async () => { const r = await deleteResumeAction(id); if (!r.ok) { toast.error(r.error); return; } toast.success("Résumé deleted"); afterDelete ? afterDelete() : router.refresh(); }}
+        onConfirm={async () => { const r = await deleteResumeAction(id); if (!r.ok) { toast.error(r.error); return; } toast.success("Résumé deleted"); if (afterDelete) afterDelete(); else router.refresh(); }}
       />
       <ConfirmDialog
         open={confirm === "older"} onOpenChange={(o) => !o && setConfirm(null)} title={`Delete ${olderVersions} older version${olderVersions === 1 ? "" : "s"}?`}

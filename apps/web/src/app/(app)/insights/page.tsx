@@ -1,10 +1,9 @@
+import { PageHeader, PAGE_CONTAINER } from "@/components/layout/page-header";
 import Link from "next/link";
 import { requireOnboarded } from "@/lib/session";
 import { prisma } from "@/lib/db";
 import { topSkillGaps, componentAverages, fitDistribution } from "@/lib/insights/aggregate";
 import { COMPONENT_LABELS } from "@foothold/shared";
-import { COMPONENT_COLORS } from "@/components/fit/fit-bar";
-import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Insights" };
 export const dynamic = "force-dynamic";
@@ -16,8 +15,8 @@ export default async function InsightsPage() {
   const maxDist = Math.max(1, ...dist.map((d) => d.count));
   const keys = ["skills", "semantic", "seniority", "years", "industry", "location"] as const;
   return (
-    <div className="mx-auto max-w-5xl space-y-10 px-4 pt-6 sm:px-6">
-      <div><h1 className="text-3xl">Insights</h1><p className="mt-1 text-muted-foreground">What the market for your target roles asks for, and where you stand.</p></div>
+    <div className={`${PAGE_CONTAINER} space-y-10`}>
+      <PageHeader className="mb-0" title="Insights" description="What the market for your target roles asks for, and where you stand." />
       <section>
         <h2 className="text-xl">Skills you are missing most often</h2>
         <p className="mb-4 text-sm text-muted-foreground">Across your top {gaps.sampleSize} matches. Bars show how many of those postings list the skill; the darker part is where it is required.</p>
@@ -42,7 +41,7 @@ export default async function InsightsPage() {
             {keys.map((k) => (
               <li key={k} className="grid grid-cols-[130px_1fr_40px] items-center gap-3">
                 <span>{COMPONENT_LABELS[k]}</span>
-                <div className="h-3 overflow-hidden rounded-full bg-muted"><div className={cn("h-full rounded-full", COMPONENT_COLORS[k])} style={{ width: `${Math.round(avg?.[k] ?? 0)}%` }} /></div>
+                <div className="h-3 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.round(avg?.[k] ?? 0)}%` }} /></div>
                 <span className="tabular-nums text-muted-foreground">{Math.round(avg?.[k] ?? 0)}</span>
               </li>
             ))}
