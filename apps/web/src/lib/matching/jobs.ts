@@ -17,14 +17,18 @@ export async function embedProfileJob({ profileId }: { profileId: string }) {
   await matchProfileJob({ profileId });
 }
 
-/** Score every open posting for one profile (the feed ranks the whole catalogue, not a nearest-neighbour sample), batched by cursor. */
+/**
+ * Score every open posting for one profile (the feed ranks the whole catalogue, not a nearest-neighbour sample),
+ * batched by cursor. Low-quality rows are scored too: the feed hides them by default but the "show low quality"
+ * toggle needs their scores to exist.
+ */
 export async function matchProfileJob({ profileId }: { profileId: string }) {
   const profile = await prisma.candidateProfile.findUnique({ where: { id: profileId }, include: { skills: true } });
   if (!profile) return;
   let cursor: string | undefined;
   for (;;) {
     const jobs = await prisma.job.findMany({
-      where: { isLowQuality: false, closedAt: null }, include: { company: true }, orderBy: { id: "asc" }, take: 400,
+      where: { closedAt: null }, include: { company: true }, orderBy: { id: "asc" }, take: 400,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     });
     if (!jobs.length) break;
