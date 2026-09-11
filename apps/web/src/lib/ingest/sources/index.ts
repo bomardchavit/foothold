@@ -24,7 +24,8 @@ export interface IndexEntry { externalId: string; version: string }
  */
 export type PollResult =
   | { kind: "not-modified" }
-  | { kind: "index"; entries: IndexEntry[]; etag: string | null }
+  /** `complete: false` means the index is only the newest slice of a large board, so nothing may be expired from it. */
+  | { kind: "index"; entries: IndexEntry[]; etag: string | null; complete?: boolean }
   | { kind: "full"; jobs: NormalizedJob[]; etag: string | null };
 
 export interface SourceAdapter {

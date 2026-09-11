@@ -30,7 +30,7 @@ export async function ingestSourceJob({ sourceId, force = false }: { sourceId: s
   const touched: string[] = [];
   try {
     let jobs: NormalizedJob[];
-    let indexed: { entries: IndexEntry[]; etag: string | null } | null = null;
+    let indexed: { entries: IndexEntry[]; etag: string | null; complete?: boolean } | null = null;
 
     if (adapter.poll && !force) {
       const polled = await adapter.poll({ slug: source.slug, name: source.name, etag: source.etag });
@@ -43,7 +43,7 @@ export async function ingestSourceJob({ sourceId, force = false }: { sourceId: s
         jobs = polled.jobs;
         indexed = { entries: jobs.map((j) => ({ externalId: j.externalId, version: j.version ?? "" })), etag: polled.etag };
       } else {
-        indexed = { entries: polled.entries, etag: polled.etag };
+        indexed = { entries: polled.entries, etag: polled.etag, complete: polled.complete };
         const known = new Map((await prisma.job.findMany({ where: { sourceId }, select: { externalId: true, sourceVersion: true } })).map((j) => [j.externalId, j.sourceVersion]));
         const changed = polled.entries.filter((e) => !known.has(e.externalId) || (known.get(e.externalId) ?? "") !== e.version);
         if (!changed.length) {
@@ -75,7 +75,7 @@ export async function ingestSourceJob({ sourceId, force = false }: { sourceId: s
         if (r.changed) touched.push(r.id);
       } catch (e) { errors.push(`${nj.externalId}: ${e instanceof Error ? e.message : String(e)}`); }
     }
-    if (fetched > 0) {
+    if (fetched > 0 && indexed?.complete !== false) {
       // A board that answered with far fewer postings than last time most likely answered partially: keep its rows this run.
       const prev = await prisma.ingestionRun.findFirst({ where: { sourceId, id: { not: run.id }, finishedAt: { not: null }, notModified: false, fetched: { gt: 0 } }, orderBy: { startedAt: "desc" }, select: { fetched: true } });
       if (prev && prev.fetched > 0 && fetched < prev.fetched * 0.5) errors.push(`expiry skipped: fetched ${fetched} postings vs ${prev.fetched} last run`);
