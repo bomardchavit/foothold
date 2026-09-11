@@ -134,9 +134,13 @@ crawl never delays the rest. Boards are asked what changed before anything is pa
 | Greenhouse | index endpoint (12× smaller, carries `updated_at` per posting) + `If-None-Match`; changed postings fetched one by one | one small request, nothing parsed |
 | Ashby, Lever | whole board with `If-None-Match` | one small request, nothing parsed |
 | SmartRecruiters | posting list polled, only new ids opened | one list request |
+| BambooHR | careers list polled, only new ids opened | one list request |
 | Careers sites, Workday | full crawl, hourly rather than every tick | n/a |
 
-Measured across 103 live sources: a steady tick polls 82 in about 3.5 minutes and 71 of them answer "no change".
+Postings the board itself places outside `JOBS_COUNTRIES` are rejected from the index without being opened, and work
+per poll is bounded so a board we have never read fills over a few ticks instead of blowing the budget. Measured across
+128 live boards: a sweep of every due source polls 88 in under 8 minutes with 73 answering "no change"; boards that
+changed nothing cost one request each.
 Postings that vanish from a board are closed and drop out of the feed. Per-source timeouts, a tick budget and a
 failure backoff keep one bad board from holding up a tick, and `/jobs` shows how many roles arrived today and when the
 boards were last checked. With `JOBS_MODE=queue` the worker takes over on its own schedule. `JOBS_COUNTRIES=US` (default) keeps only US-located, remote, or unplaceable postings and prunes the rest. Company logos are fetched from each company's own site (apple-touch-icon / icon links / favicon, robots-compliant) and served from `/api/logo/:companyId`, with a public favicon service as fallback and an initials tile after that. **No API keys are involved in scraping**; only Adzuna/USAJobs (extra sources) and Anthropic/Voyage (AI features) need keys.

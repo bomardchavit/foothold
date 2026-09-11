@@ -21,7 +21,13 @@ function endpoints(slug: string) {
 const page = (listUrl: string, offset: number, limit = 20) =>
   politeJson<WdList>(listUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appliedFacets: {}, limit, offset, searchText: "" }) });
 /** Newest-first slice we read per poll. Big tenants (CVS has 18k postings) are never read whole. */
-const POLL_PAGES = Number(process.env.WORKDAY_POLL_PAGES ?? 10);
+const POLL_PAGES = Number(process.env.WORKDAY_POLL_PAGES ?? 5);
+/**
+ * Requisition id → posting path, remembered from the poll that just listed them. Without it every changed posting
+ * would re-page the whole listing to find its own path, which is what makes a Workday tenant slow.
+ */
+const paths = new Map<string, { at: number; byId: Map<string, string> }>();
+const PATHS_TTL_MS = 15 * 60_000;
 
 export const workday: SourceAdapter = {
   kind: "WORKDAY", label: "Workday career site", needsKey: false,
@@ -35,19 +41,31 @@ export const workday: SourceAdapter = {
     const { listUrl, base } = endpoints(slug);
     if (!(await isAllowed(listUrl))) throw new Error(`robots.txt at ${base} disallows ${listUrl}; skipping (no evasion)`);
     const entries: IndexEntry[] = [];
+    const byId = new Map<string, string>();
     let total = 0;
     for (let i = 0; i < POLL_PAGES; i++) {
       const p = await page(listUrl, i * 20);
       total = p.total ?? total;
-      for (const j of p.jobPostings ?? []) entries.push({ externalId: j.bulletFields?.[0] || j.externalPath, version: j.externalPath });
+      for (const j of p.jobPostings ?? []) {
+        const id = j.bulletFields?.[0] || j.externalPath;
+        entries.push({ externalId: id, version: j.externalPath, location: j.locationsText ?? null });
+        byId.set(id, j.externalPath);
+      }
       if ((p.jobPostings?.length ?? 0) < 20) break;
     }
+    paths.set(slug, { at: Date.now(), byId });
     return { kind: "index", entries, etag: null, complete: total > 0 ? entries.length >= total : true };
   },
 
   async fetchOne({ slug, name, externalId }) {
     const { listUrl, detail } = endpoints(slug);
-    // The index stores the requisition id; find its path in the newest pages, then read the posting itself.
+    const cached = paths.get(slug);
+    const path = cached && Date.now() - cached.at < PATHS_TTL_MS ? cached.byId.get(externalId) : undefined;
+    if (path) {
+      const d = await politeJson<WdDetail>(detail(path));
+      return d.jobPostingInfo ? toJob(d, { externalPath: path, bulletFields: [externalId] }, slug, name) : null;
+    }
+    // No fresh listing in hand (a manual run, or the cache aged out): find the posting in the newest pages.
     for (let i = 0; i < POLL_PAGES; i++) {
       const p = await page(listUrl, i * 20);
       const hit = (p.jobPostings ?? []).find((j) => (j.bulletFields?.[0] || j.externalPath) === externalId);

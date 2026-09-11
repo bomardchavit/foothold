@@ -34,7 +34,7 @@ export const smartrecruiters: SourceAdapter = {
     while (offset < Math.min(total, 300)) {
       const page = await politeJson<{ totalFound: number; content: SrPosting[] }>(listUrl(slug, offset), { skipRobots: true });
       total = page.totalFound ?? page.content.length;
-      for (const p of page.content) entries.push({ externalId: p.id, version: p.releasedDate ?? "" });
+      for (const p of page.content) entries.push({ externalId: p.id, version: p.releasedDate ?? "", location: [p.location?.city, p.location?.region, p.location?.country].filter(Boolean).join(", ") || null });
       if (!page.content.length) break;
       offset += page.content.length;
     }

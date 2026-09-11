@@ -48,9 +48,9 @@ export const greenhouse: SourceAdapter = {
   },
 
   async poll({ slug, etag }): Promise<PollResult> {
-    const res = await getJsonIfChanged<{ jobs: Array<Pick<GhJob, "id" | "updated_at">> }>(api(slug, "/jobs"), etag);
+    const res = await getJsonIfChanged<{ jobs: Array<Pick<GhJob, "id" | "updated_at" | "location">> }>(api(slug, "/jobs"), etag);
     if (res.notModified) return { kind: "not-modified" };
-    const entries: IndexEntry[] = res.body.jobs.map((j) => ({ externalId: String(j.id), version: j.updated_at ?? "" }));
+    const entries: IndexEntry[] = res.body.jobs.map((j) => ({ externalId: String(j.id), version: j.updated_at ?? "", location: j.location?.name ?? null }));
     return { kind: "index", entries, etag: res.etag };
   },
 

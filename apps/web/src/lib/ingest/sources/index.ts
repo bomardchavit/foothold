@@ -15,8 +15,11 @@ import { bamboohr } from "./bamboohr";
 
 export interface SourceRef { slug: string; name: string | null }
 
-/** One posting as it appears in a board's cheap index: enough to tell new/changed from unchanged. */
-export interface IndexEntry { externalId: string; version: string }
+/**
+ * One posting as it appears in a board's cheap index: enough to tell new/changed from unchanged, and (when the board
+ * says so) where the job is, so a posting outside the countries we keep is never opened at all.
+ */
+export interface IndexEntry { externalId: string; version: string; location?: string | null }
 
 /**
  * What a poll found. `not-modified` means the board answered 304 and nothing was parsed; `index` means we know which

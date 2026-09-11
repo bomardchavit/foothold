@@ -13,6 +13,11 @@ const EXPIRE_GRACE_MS: Partial<Record<JobSourceKind, number>> = { CAREERS: 2 * 8
 
 /** Above this many changed postings, one full-board fetch beats fetching them one at a time. */
 const SINGLE_FETCH_LIMIT = 25;
+/**
+ * Work per poll is bounded: a board we have never read (SmartRecruiters opens one request per posting) fills over a
+ * few ticks instead of blowing the tick budget. Whatever is left is still "changed" and is picked up next time.
+ */
+const MAX_FETCH_PER_POLL = Number(process.env.SCRAPE_MAX_FETCH_PER_POLL ?? 60);
 
 /**
  * One pass over a source. Adapters that implement `poll` are asked what changed first: an unchanged board answers 304
@@ -45,13 +50,24 @@ export async function ingestSourceJob({ sourceId, force = false }: { sourceId: s
       } else {
         indexed = { entries: polled.entries, etag: polled.etag, complete: polled.complete };
         const known = new Map((await prisma.job.findMany({ where: { sourceId }, select: { externalId: true, sourceVersion: true } })).map((j) => [j.externalId, j.sourceVersion]));
-        const changed = polled.entries.filter((e) => !known.has(e.externalId) || (known.get(e.externalId) ?? "") !== e.version);
-        if (!changed.length) {
+        const candidates = polled.entries.filter((e) => !known.has(e.externalId) || (known.get(e.externalId) ?? "") !== e.version);
+        // A posting the board itself places outside the countries we keep is never opened. Without this, boards with a
+        // large overseas footprint re-fetch the same rejected postings on every poll, because nothing is ever stored.
+        const changed = candidates.filter((e) => {
+          if (!e.location) return true;
+          const loc = parseLocation(e.location);
+          if (inScope(loc, loc.isRemote)) return true;
+          skipped++;
+          return false;
+        });
+        const batch = changed.slice(0, MAX_FETCH_PER_POLL);
+        if (changed.length > batch.length) errors.push(`${changed.length - batch.length} changed postings left for the next poll`);
+        if (!batch.length) {
           jobs = [];
-        } else if (!adapter.fetchOne || changed.length > SINGLE_FETCH_LIMIT) {
+        } else if (!adapter.fetchOne || (batch.length > SINGLE_FETCH_LIMIT && batch.length === changed.length)) {
           jobs = await adapter.fetchJobs({ slug: source.slug, name: source.name });
         } else {
-          const fetchedOnes = await Promise.all(changed.map((c) =>
+          const fetchedOnes = await Promise.all(batch.map((c) =>
             adapter.fetchOne!({ slug: source.slug, name: source.name, externalId: c.externalId })
               .catch((e) => { errors.push(`${c.externalId}: ${e instanceof Error ? e.message : String(e)}`); return null; })));
           jobs = fetchedOnes.filter((j): j is NormalizedJob => j !== null);
@@ -112,7 +128,7 @@ export async function expireUnseenJobs(source: Pick<JobSource, "id" | "kind">, s
  */
 const POLL_MINUTES: Partial<Record<JobSourceKind, number>> = { CAREERS: 60, ADZUNA: 30, USAJOBS: 30, WORKDAY: 20, SEED: 1440, MANUAL: 1440 };
 /** No single source may hold a worker for the whole tick: a slow board is abandoned and picked up next time. */
-const SOURCE_TIMEOUT_MS: Partial<Record<JobSourceKind, number>> = { CAREERS: 240_000, WORKDAY: 120_000 };
+const SOURCE_TIMEOUT_MS: Partial<Record<JobSourceKind, number>> = { CAREERS: 240_000, WORKDAY: 180_000, SMARTRECRUITERS: 180_000 };
 const DEFAULT_SOURCE_TIMEOUT_MS = 90_000;
 const FAST_POLL_MIN = Number(process.env.SCRAPE_POLL_MIN ?? 10);
 const MAX_BACKOFF_MIN = 240;

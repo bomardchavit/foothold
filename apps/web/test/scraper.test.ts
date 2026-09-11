@@ -93,7 +93,10 @@ describe("conditional polling", () => {
       const fresh = await greenhouse.poll!({ slug: "acme", name: "Acme", etag: null });
       expect(fresh.kind).toBe("index");
       if (fresh.kind === "index") {
-        expect(fresh.entries).toEqual([{ externalId: "1", version: "2026-09-11T10:00:00Z" }, { externalId: "2", version: "2026-09-10T10:00:00Z" }]);
+        expect(fresh.entries).toEqual([
+          { externalId: "1", version: "2026-09-11T10:00:00Z", location: null },
+          { externalId: "2", version: "2026-09-10T10:00:00Z", location: null },
+        ]);
         expect(fresh.etag).toBe('W/"same"');
       }
       const boardCall = calls.find((c) => c.url.includes("/boards/acme/jobs"))!;
@@ -131,7 +134,7 @@ describe("index polling never expires from a partial view", () => {
       expect(r.kind).toBe("index");
       if (r.kind === "index") {
         expect(r.complete).toBe(false); // fewer entries than the board's own total
-        expect(r.entries[0]).toEqual({ externalId: "R0", version: "/job/x/Job-0_R0" });
+        expect(r.entries[0]).toEqual({ externalId: "R0", version: "/job/x/Job-0_R0", location: null });
       }
     } finally {
       globalThis.fetch = realFetch;
