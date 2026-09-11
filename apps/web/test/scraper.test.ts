@@ -106,3 +106,12 @@ describe("conditional polling", () => {
     }
   });
 });
+
+describe("ATS discovery guards", () => {
+  it("never guesses a BambooHR subdomain: a shared ATS board carries no company name to check", async () => {
+    const discover = await import("@/lib/ingest/discover");
+    const src = (await import("node:fs")).readFileSync(new URL("../src/lib/ingest/discover.ts", import.meta.url), "utf8");
+    expect(src).not.toMatch(/kind: "BAMBOOHR"/);
+    expect(typeof discover.discoverSources).toBe("function");
+  });
+});

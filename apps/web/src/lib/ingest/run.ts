@@ -310,7 +310,7 @@ export async function bootstrapUsCompanies(opts: { limit?: number; all?: boolean
         sources = r.found.map((f) => ({ kind: f.kind, slug: f.slug }));
         if (!sources.length) { log(`${c.name}: no public job source found`); continue; }
       }
-      for (const src of sources) {
+      for (const src of sources.map((x) => ({ ...x, slug: x.slug.trim() }))) {
         const row = await prisma.jobSource.upsert({ where: { kind_slug: { kind: src.kind, slug: src.slug } }, create: { kind: src.kind, slug: src.slug, name: c.name, domain: c.domain, enabled: true }, update: { name: c.name, domain: c.domain, enabled: true } });
         registered++;
         const r = await withTimeout(ingestSourceJob({ sourceId: row.id }), BOOTSTRAP_TIMEOUT_MS, `${c.name} ingest`);

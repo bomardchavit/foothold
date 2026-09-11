@@ -38,7 +38,12 @@ function links(html: string, base: URL): string[] {
   return [...out].slice(0, 6);
 }
 
-/** Public ATS APIs answer 200 for a real board: probe them with slugs derived from the domain, first hit per ATS wins, at most MAX_PROBES requests. */
+/**
+ * Public ATS APIs answer 200 for a real board: probe them with slugs derived from the domain, first hit per ATS wins,
+ * at most MAX_PROBES requests. Each probe checks the board's own company name against the one we are looking for.
+ * BambooHR is deliberately absent: its board list carries no company name, and a guessed subdomain on a shared ATS
+ * ("walmart.bamboohr.com" is not Walmart Inc.) would attribute someone else's postings to a company people search for.
+ */
 async function probeAts(slugs: string[], companyName: string): Promise<DiscoveredSource[]> {
   const out: DiscoveredSource[] = [];
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -49,7 +54,6 @@ async function probeAts(slugs: string[], companyName: string): Promise<Discovere
     { kind: "ASHBY", url: (s) => `https://api.ashbyhq.com/posting-api/job-board/${s}`, check: (j) => (j && typeof j === "object" && "jobs" in j && Array.isArray((j as { jobs: unknown[] }).jobs) && (j as { jobs: unknown[] }).jobs.length > 0 ? "ashby" : false) },
     { kind: "WORKABLE", url: (s) => `https://www.workable.com/api/accounts/${s}`, check: (j) => (j && typeof j === "object" && "jobs" in j && Array.isArray((j as { jobs: unknown[] }).jobs) && (j as { jobs: unknown[] }).jobs.length > 0 && (j as { name?: string }).name && nameOk((j as { name?: string }).name) ? "workable" : false) },
     { kind: "SMARTRECRUITERS", url: (s) => `https://api.smartrecruiters.com/v1/companies/${s}/postings?limit=1`, check: (j) => (j && typeof j === "object" && "totalFound" in j && Number((j as { totalFound: number }).totalFound) > 0 ? "smartrecruiters" : false) },
-    { kind: "BAMBOOHR", url: (s) => `https://${s}.bamboohr.com/careers/list`, check: (j) => (j && typeof j === "object" && "result" in j && Array.isArray((j as { result: unknown[] }).result) && (j as { result: unknown[] }).result.length > 0 ? "bamboohr" : false) },
   ];
   const hit = new Set<JobSourceKind>();
   let probed = 0;
