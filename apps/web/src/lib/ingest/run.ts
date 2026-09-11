@@ -1,5 +1,5 @@
-import type { JobSource, JobSourceKind } from "@prisma/client";
-import { hammingDistance, parseLocation, industryForDomain } from "@foothold/shared";
+import type { CompanySize, JobSource, JobSourceKind } from "@prisma/client";
+import { hammingDistance, parseLocation, industryForDomain, sizeForDomain } from "@foothold/shared";
 import { prisma } from "../db";
 import { ADAPTERS } from "./sources";
 import { upsertNormalizedJob, retireJobs, inScope, mergeLocations } from "./normalize";
@@ -72,15 +72,19 @@ export async function ingestAllJob() {
   await syncKnownIndustries().catch((e) => console.warn("[ingest] industry sync failed", e instanceof Error ? e.message : e));
 }
 
-/** Curated employer industries beat keyword guesses: rewrite Company.industry (and its jobs) wherever the stored value disagrees. */
+/** Curated employer facts (industry, headcount bucket) beat keyword guesses and blanks: rewrite Company rows (and job industries) wherever the stored value disagrees. */
 export async function syncKnownIndustries(): Promise<number> {
-  const companies = await prisma.company.findMany({ where: { domain: { not: null } }, select: { id: true, domain: true, industry: true } });
+  const companies = await prisma.company.findMany({ where: { domain: { not: null } }, select: { id: true, domain: true, industry: true, size: true } });
   let fixed = 0;
   for (const c of companies) {
-    const known = industryForDomain(c.domain);
-    if (!known || known === c.industry) continue;
-    await prisma.company.update({ where: { id: c.id }, data: { industry: known } });
-    await prisma.job.updateMany({ where: { companyId: c.id }, data: { industry: known } });
+    const industry = industryForDomain(c.domain);
+    const size = sizeForDomain(c.domain);
+    const data: { industry?: string; size?: CompanySize } = {};
+    if (industry && industry !== c.industry) data.industry = industry;
+    if (size && size !== c.size) data.size = size;
+    if (!Object.keys(data).length) continue;
+    await prisma.company.update({ where: { id: c.id }, data });
+    if (data.industry) await prisma.job.updateMany({ where: { companyId: c.id }, data: { industry: data.industry } });
     fixed++;
   }
   return fixed;

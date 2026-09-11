@@ -133,12 +133,45 @@ const KNOWN_COMPANY_INDUSTRIES: Record<string, Industry> = {
   "tesla.com": "Automotive", "rivian.com": "Automotive", "spacex.com": "Aerospace / Defense", "airtable.com": "Software / SaaS", "zapier.com": "Software / SaaS",
 };
 
-/** Industry for a well-known employer, keyed by website domain ("www." and subdomains ignored). */
-export function industryForDomain(domain: string | null | undefined): Industry | null {
+function lookupByDomain<T>(table: Record<string, T>, domain: string | null | undefined): T | null {
   if (!domain) return null;
   const d = domain.toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/^www\./, "");
-  if (KNOWN_COMPANY_INDUSTRIES[d]) return KNOWN_COMPANY_INDUSTRIES[d];
+  if (table[d]) return table[d];
   const parts = d.split(".");
-  for (let i = 1; i < parts.length - 1; i++) { const k = parts.slice(i).join("."); if (KNOWN_COMPANY_INDUSTRIES[k]) return KNOWN_COMPANY_INDUSTRIES[k]; }
+  for (let i = 1; i < parts.length - 1; i++) { const k = parts.slice(i).join("."); if (table[k]) return table[k]; }
   return null;
+}
+
+/** Industry for a well-known employer, keyed by website domain ("www." and subdomains ignored). */
+export function industryForDomain(domain: string | null | undefined): Industry | null {
+  return lookupByDomain(KNOWN_COMPANY_INDUSTRIES, domain);
+}
+
+export type CompanySizeBucket = "STARTUP" | "SMALL" | "MEDIUM" | "LARGE" | "ENTERPRISE";
+/** Approximate headcount buckets for well-known employers (STARTUP ≤50, SMALL 51–200, MEDIUM 201–1,000, LARGE 1,001–10,000, ENTERPRISE 10,000+); ATS boards never state this. */
+const KNOWN_COMPANY_SIZES: Record<string, CompanySizeBucket> = {
+  "stripe.com": "LARGE", "airbnb.com": "LARGE", "figma.com": "LARGE", "datadoghq.com": "LARGE", "cloudflare.com": "LARGE", "coinbase.com": "LARGE", "discord.com": "MEDIUM",
+  "doordash.com": "ENTERPRISE", "duolingo.com": "MEDIUM", "gitlab.com": "LARGE", "mongodb.com": "LARGE", "robinhood.com": "LARGE", "scale.com": "MEDIUM", "vercel.com": "MEDIUM",
+  "anduril.com": "LARGE", "brex.com": "LARGE", "lyft.com": "LARGE", "pinterest.com": "LARGE", "redditinc.com": "LARGE", "reddit.com": "LARGE", "asana.com": "LARGE", "dropbox.com": "LARGE",
+  "instacart.com": "LARGE", "flexport.com": "LARGE", "samsara.com": "LARGE", "gusto.com": "LARGE", "affirm.com": "LARGE", "chime.com": "LARGE", "anthropic.com": "LARGE", "databricks.com": "LARGE",
+  "roblox.com": "LARGE", "hashicorp.com": "LARGE", "elastic.co": "LARGE", "twilio.com": "LARGE", "zapier.com": "MEDIUM", "webflow.com": "MEDIUM", "carta.com": "LARGE", "benchling.com": "MEDIUM",
+  "faire.com": "MEDIUM", "block.xyz": "ENTERPRISE", "squareup.com": "ENTERPRISE", "square.com": "ENTERPRISE", "okta.com": "LARGE", "plaid.com": "LARGE", "rippling.com": "LARGE", "netlify.com": "SMALL",
+  "palantir.com": "LARGE", "veeva.com": "LARGE", "cohere.com": "MEDIUM", "eightsleep.com": "MEDIUM", "replit.com": "SMALL", "runwayml.com": "SMALL", "deel.com": "LARGE", "mercury.com": "MEDIUM",
+  "notion.so": "MEDIUM", "linear.app": "SMALL", "ramp.com": "LARGE", "openai.com": "LARGE", "supabase.com": "SMALL", "retool.com": "MEDIUM", "vanta.com": "MEDIUM", "modal.com": "SMALL",
+  "perplexity.ai": "MEDIUM", "cursor.com": "SMALL", "mistral.ai": "MEDIUM", "nvidia.com": "ENTERPRISE", "apple.com": "ENTERPRISE", "microsoft.com": "ENTERPRISE", "amazon.jobs": "ENTERPRISE", "amazon.com": "ENTERPRISE",
+  "meta.com": "ENTERPRISE", "netflix.com": "ENTERPRISE", "uber.com": "ENTERPRISE", "salesforce.com": "ENTERPRISE", "adobe.com": "ENTERPRISE", "intuit.com": "ENTERPRISE", "paypal.com": "ENTERPRISE",
+  "snap.com": "LARGE", "zoom.com": "LARGE", "servicenow.com": "ENTERPRISE", "workday.com": "ENTERPRISE", "crowdstrike.com": "LARGE", "snowflake.com": "LARGE", "atlassian.com": "ENTERPRISE", "slack.com": "LARGE",
+  "etsy.com": "LARGE", "onepeloton.com": "LARGE", "wayfair.com": "ENTERPRISE", "chewy.com": "ENTERPRISE", "zillow.com": "LARGE", "redfin.com": "LARGE", "opendoor.com": "MEDIUM", "sofi.com": "LARGE",
+  "marqeta.com": "MEDIUM", "toasttab.com": "LARGE", "hubspot.com": "LARGE", "klaviyo.com": "LARGE", "braze.com": "LARGE", "amplitude.com": "MEDIUM", "mixpanel.com": "MEDIUM", "pagerduty.com": "LARGE",
+  "splunk.com": "LARGE", "newrelic.com": "LARGE", "confluent.io": "LARGE", "cockroachlabs.com": "MEDIUM", "planetscale.com": "SMALL", "postman.com": "MEDIUM", "grammarly.com": "MEDIUM", "canva.com": "LARGE",
+  "miro.com": "LARGE", "airtable.com": "MEDIUM", "loom.com": "SMALL", "calendly.com": "MEDIUM", "docusign.com": "LARGE", "box.com": "LARGE", "twitch.tv": "LARGE", "spotify.com": "LARGE",
+  "epicgames.com": "LARGE", "unity.com": "LARGE", "riotgames.com": "LARGE", "waymo.com": "LARGE", "getcruise.com": "MEDIUM", "rivian.com": "ENTERPRISE", "tesla.com": "ENTERPRISE", "spacex.com": "ENTERPRISE",
+  "relativityspace.com": "MEDIUM", "modernatx.com": "LARGE", "tempus.com": "LARGE", "hioscar.com": "LARGE", "ro.co": "MEDIUM", "forhims.com": "LARGE", "capitalone.com": "ENTERPRISE", "americanexpress.com": "ENTERPRISE",
+  "jpmorganchase.com": "ENTERPRISE", "goldmansachs.com": "ENTERPRISE", "twosigma.com": "LARGE", "janestreet.com": "LARGE", "citadel.com": "LARGE", "hudsonrivertrading.com": "MEDIUM", "walmart.com": "ENTERPRISE",
+  "target.com": "ENTERPRISE", "nike.com": "ENTERPRISE", "disney.com": "ENTERPRISE", "wbd.com": "ENTERPRISE", "nytimes.com": "LARGE", "shopify.com": "LARGE",
+};
+
+/** Headcount bucket for a well-known employer, keyed by website domain. */
+export function sizeForDomain(domain: string | null | undefined): CompanySizeBucket | null {
+  return lookupByDomain(KNOWN_COMPANY_SIZES, domain);
 }

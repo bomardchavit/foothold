@@ -70,7 +70,7 @@ npm run scrape:watch                               # every 30 minutes (or run `n
 npm run scrape -- export                           # data/exports/jobs.json, normalized
 npm run scrape -- logos --retry                    # every company gets a logo (site icon → favicon services → generated mark); --retry re-probes generated marks
 npm run scrape -- logos --revalidate               # re-check stored logos against the shape rules, replace share banners and broken files
-npm run scrape -- industries                       # curated employer industries overwrite keyword guesses (Company + Job rows)
+npm run scrape -- industries                       # curated employer industries and headcount buckets overwrite keyword guesses and blanks
 npm run scrape -- prune                            # retire postings outside JOBS_COUNTRIES
 ```
 

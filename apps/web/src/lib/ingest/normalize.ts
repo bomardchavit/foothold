@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { JobSource } from "@prisma/client";
-import { normalizeCompanyName, normalizeText, parseLocation, normalizeIndustry, simhash, hammingDistance, US_STATES, type NormalizedJob, industryForDomain } from "@foothold/shared";
+import { normalizeCompanyName, normalizeText, parseLocation, normalizeIndustry, simhash, hammingDistance, US_STATES, type NormalizedJob, industryForDomain, sizeForDomain } from "@foothold/shared";
 import { prisma } from "../db";
 import { parseJob } from "../llm/tasks/parseJob";
 import { computeQualityFlags, QUALITY_FLAGS } from "./quality";
@@ -122,11 +122,13 @@ export async function upsertNormalizedJob(source: JobSource, nj: NormalizedJob):
   let company = await prisma.company.findUnique({ where: { normalizedName } });
   let newCompany = false;
   if (!company) {
-    company = await prisma.company.create({ data: { name: nj.company.trim(), normalizedName, domain: nj.companyDomain ?? null, industry: industryForDomain(nj.companyDomain) ?? normalizeIndustry(nj.companyIndustry) ?? null, size: nj.companySize ?? null } });
+    company = await prisma.company.create({ data: { name: nj.company.trim(), normalizedName, domain: nj.companyDomain ?? null, industry: industryForDomain(nj.companyDomain) ?? normalizeIndustry(nj.companyIndustry) ?? null, size: sizeForDomain(nj.companyDomain) ?? nj.companySize ?? null } });
     newCompany = true;
-  } else if ((!company.domain && nj.companyDomain) || (!company.industry && nj.companyIndustry) || (industryForDomain(company.domain ?? nj.companyDomain) ?? company.industry) !== company.industry) {
+  } else {
     const domain = company.domain ?? nj.companyDomain ?? null;
-    company = await prisma.company.update({ where: { id: company.id }, data: { domain, industry: industryForDomain(domain) ?? company.industry ?? normalizeIndustry(nj.companyIndustry) ?? null } });
+    const industry = industryForDomain(domain) ?? company.industry ?? normalizeIndustry(nj.companyIndustry) ?? null;
+    const size = sizeForDomain(domain) ?? company.size ?? nj.companySize ?? null;
+    if (domain !== company.domain || industry !== company.industry || size !== company.size) company = await prisma.company.update({ where: { id: company.id }, data: { domain, industry, size } });
   }
   if (newCompany) await refreshCompanySignal(company.id).catch((e) => console.warn("[h1b] signal failed", e));
 
