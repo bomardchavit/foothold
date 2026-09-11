@@ -1,8 +1,11 @@
 name: release
 
-# Push a tag (npm run release -- minor && git push --follow-tags) and this builds the installers,
-# publishes them to the GitHub Release, and attaches the extension zip. The desktop app's updater
-# reads that release, so shipping a tag updates everyone who already installed it.
+# Push a tag (npm run release -- minor && git push --follow-tags) and this builds the installers, then
+# publishes them in ONE release. The desktop app's updater reads that release, so shipping a tag updates
+# everyone who already installed it.
+#
+# Each platform builds with --publish never and hands its files to the publish job: three runners writing
+# to the same GitHub release race each other and the loser fails with a 422.
 on:
   push:
     tags: ["v*"]
@@ -12,8 +15,8 @@ permissions:
   contents: write
 
 jobs:
-  desktop:
-    name: desktop (${{ matrix.os }})
+  build:
+    name: build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -43,41 +46,77 @@ jobs:
               echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"
               echo "CSC_IDENTITY_AUTO_DISCOVERY=true"
             } >> "$GITHUB_ENV"
-            [ -n "$APPLE_ID_SECRET" ] && {
-              echo "APPLE_ID=$APPLE_ID_SECRET"
-              echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD_SECRET"
-              echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET"
-            } >> "$GITHUB_ENV"
+            if [ -n "$APPLE_ID_SECRET" ]; then
+              {
+                echo "APPLE_ID=$APPLE_ID_SECRET"
+                echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD_SECRET"
+                echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET"
+              } >> "$GITHUB_ENV"
+            fi
             echo "Signing with the provided Developer ID certificate."
           else
             echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
-            echo "No MAC_CSC_LINK secret: publishing an unsigned build."
+            echo "No MAC_CSC_LINK secret: building unsigned."
           fi
-      - name: Build and publish installers
+      - name: Build installers
         working-directory: apps/desktop
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Repository variable: the deployed server new installs open on first launch.
           FOOTHOLD_APP_URL: ${{ vars.FOOTHOLD_APP_URL }}
-        run: npm run release
+        run: |
+          npm run build
+          npx electron-builder --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            apps/desktop/release/*.dmg
+            apps/desktop/release/*.zip
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.AppImage
+            apps/desktop/release/*.deb
+            apps/desktop/release/*.blockmap
+            apps/desktop/release/latest*.yml
 
   extension:
     name: extension zip
-    needs: desktop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci || npm ci
+      - run: npm run build:extension
+        env:
+          FOOTHOLD_APP_URL: ${{ vars.FOOTHOLD_APP_URL }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension
+          if-no-files-found: error
+          path: apps/extension/release/*.zip
+
+  publish:
+    name: publish the release
+    needs: [build, extension]
     runs-on: ubuntu-latest
     env:
       CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
-      - run: npm ci
-      - run: npm run build:extension
-        env:
-          FOOTHOLD_APP_URL: ${{ vars.FOOTHOLD_APP_URL }}
-      - name: Attach the zip to the release
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts, merge-multiple: true }
+      - name: Publish
         env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
-        run: gh release upload "${GITHUB_REF_NAME}" apps/extension/release/*.zip --clobber
+        run: |
+          ls -lh artifacts
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" artifacts/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" artifacts/* \
+              --title "$GITHUB_REF_NAME" \
+              --notes "Installers for macOS, Windows and Linux, plus the Chrome extension. Installed desktop apps update themselves from this release."
+          fi
       - name: Publish to the Chrome Web Store
         if: ${{ env.CHROME_CLIENT_ID != '' }}
         env:
@@ -85,4 +124,4 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
           REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
           EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
-        run: npx --yes chrome-webstore-upload-cli@3 upload --source apps/extension/release/*.zip --auto-publish
+        run: npx --yes chrome-webstore-upload-cli@3 upload --source artifacts/foothold-extension-*.zip --auto-publish
