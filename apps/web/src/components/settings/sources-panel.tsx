@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { toggleSourceAction, runSourceAction, addSourceAction, refreshH1bAction, bootstrapUsAction, refreshLogosAction } from "@/app/actions/settings";
 import { toast } from "sonner";
 
-interface Src { id: string; kind: JobSourceKind; slug: string; name: string | null; enabled: boolean; jobs: number; lastRun: string | null; lastStatus: string | null; lastCounts: string | null }
+interface Src { id: string; kind: JobSourceKind; slug: string; name: string | null; enabled: boolean; jobs: number; lastRun: string | null; lastStatus: string | null; lastCounts: string | null; nextRun: string | null; everyMin: number }
 const HELP: Record<string, string> = { GREENHOUSE: "board token from boards.greenhouse.io/<token>", LEVER: "site name from jobs.lever.co/<site>", ASHBY: "board name from jobs.ashbyhq.com/<name>", ADZUNA: "search query, e.g. 'product manager'", USAJOBS: "keyword query, e.g. 'data scientist'", CAREERS: "careers page URL (robots.txt-compliant JSON-LD crawl)", SMARTRECRUITERS: "company identifier from jobs.smartrecruiters.com/<id>", WORKABLE: "subdomain from apply.workable.com/<subdomain>", WORKDAY: "tenant.wd5/SiteName from the career site URL", BAMBOOHR: "subdomain from <subdomain>.bamboohr.com/careers" };
 
 export function SourcesPanel({ sources, keys, scheduler, countries, curatedCount }: { sources: Src[]; keys: { adzuna: boolean; usajobs: boolean }; scheduler: { everyMin: number; mode: string }; countries: string; curatedCount: number }) {
@@ -39,7 +39,7 @@ export function SourcesPanel({ sources, keys, scheduler, countries, curatedCount
           <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 p-3">
             <div className="min-w-0">
               <p className="font-medium"><Badge variant="outline" className="mr-2 font-normal">{s.kind.toLowerCase()}</Badge>{s.name ?? s.slug} <span className="text-xs text-muted-foreground">({s.slug})</span></p>
-              <p className="text-xs text-muted-foreground">{s.jobs} jobs{s.lastRun ? ` · last run ${s.lastRun}: ${s.lastStatus ?? ""}${s.lastCounts ? ` (${s.lastCounts})` : ""}` : " · never run"}</p>
+              <p className="text-xs text-muted-foreground">{s.jobs} jobs{s.lastRun ? ` · checked ${s.lastRun}: ${s.lastStatus ?? ""}${s.lastCounts ? ` (${s.lastCounts})` : ""}` : " · never checked"}{s.enabled ? ` · every ${s.everyMin} min${s.nextRun ? `, next ${s.nextRun}` : ""}` : ""}</p>
             </div>
             <div className="flex items-center gap-3">
               {s.kind !== "SEED" && s.kind !== "MANUAL" && <Switch checked={s.enabled} onCheckedChange={(v) => start(async () => { await toggleSourceAction(s.id, v); })} />}
