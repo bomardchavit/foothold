@@ -24,7 +24,7 @@ export async function matchProfileJob({ profileId }: { profileId: string }) {
   const cosines = new Map(nearest.map((n) => [n.id, n.cosine]));
   const ids = new Set(nearest.map((n) => n.id));
   if (ids.size === 0) {
-    const recent = await prisma.job.findMany({ where: { isLowQuality: false }, orderBy: { firstSeenAt: "desc" }, take: 500, select: { id: true } });
+    const recent = await prisma.job.findMany({ where: { isLowQuality: false, closedAt: null }, orderBy: { firstSeenAt: "desc" }, take: 500, select: { id: true } });
     for (const r of recent) ids.add(r.id);
   }
   const existing = await prisma.matchScore.findMany({ where: { profileId }, select: { jobId: true } });

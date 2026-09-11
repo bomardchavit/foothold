@@ -10,7 +10,7 @@ export async function buildDigestForUser(userId: string) {
   const last = await prisma.digestSend.findFirst({ where: { userId }, orderBy: { sentAt: "desc" } });
   const since = last?.sentAt ?? new Date(Date.now() - 7 * 86400_000);
   const matches = await prisma.matchScore.findMany({
-    where: { profileId: profile.id, total: { gte: 50 }, job: { firstSeenAt: { gt: since }, isLowQuality: false } },
+    where: { profileId: profile.id, total: { gte: 50 }, job: { firstSeenAt: { gt: since }, isLowQuality: false, closedAt: null } },
     orderBy: { total: "desc" }, take: 10, include: { job: { include: { company: true } } },
   });
   return { profile, since, matches };

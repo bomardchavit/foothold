@@ -15,7 +15,7 @@ interface Msg { id: string; role: "user" | "assistant"; content: string; groundi
 export interface GroundingReport { status: "GROUNDED" | "PARTIAL" | "REJECTED" | "NA"; flagged: Array<{ sentence: string; reason: string }>; retried: boolean; mode: string }
 
 const PROMPTS = (hasJob: boolean) => hasJob
-  ? ["Why do I match this role?", "What are my gaps?", "Draft a cover letter", "Prep me for an interview at this company", "Should I apply?"]
+  ? ["Why do I match this role?", "What are my gaps?", "Should I apply?", "What is the pay and location?", "Draft a cover letter", "Prep me for an interview at this company"]
   : ["What kinds of roles fit my profile best?", "What skills should I add next?", "Summarize my strengths"];
 
 /**

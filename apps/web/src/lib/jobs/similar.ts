@@ -11,7 +11,7 @@ export function titleFamily(normalizedTitle: string): string {
 export async function similarRoles(profileId: string, userId: string, job: { id: string; normalizedTitle: string }, take = 3): Promise<MatchRow[]> {
   const family = titleFamily(job.normalizedTitle);
   return prisma.matchScore.findMany({
-    where: { profileId, jobId: { not: job.id }, job: { isLowQuality: false, hiddenBy: { none: { userId } }, OR: [{ normalizedTitle: job.normalizedTitle }, { normalizedTitle: { contains: family } }] } },
+    where: { profileId, jobId: { not: job.id }, job: { isLowQuality: false, closedAt: null, hiddenBy: { none: { userId } }, OR: [{ normalizedTitle: job.normalizedTitle }, { normalizedTitle: { contains: family } }] } },
     include: matchInclude,
     orderBy: [{ total: "desc" }, { job: { postedAt: "desc" } }],
     take,

@@ -70,6 +70,8 @@ export function feedWhere(profileId: string, userId: string, f: FeedFilters): Pr
   const job: Prisma.JobWhereInput = {};
   const and: Prisma.JobWhereInput[] = [];
   if (!f.lowq) job.isLowQuality = false;
+  // Closed postings stay only where the user already tracked them (liked/applied/external tabs), never in the feed
+  if (f.tab === "recommended") job.closedAt = null;
   if (f.posted) job.postedAt = { gte: new Date(Date.now() - f.posted * 86400_000) };
   if (f.remote) job.isRemote = true;
   if (f.seniority.length) job.seniority = { in: f.seniority };
@@ -143,5 +145,5 @@ export async function connectionCounts(userId: string, companyNormalizedNames: s
 }
 
 export async function newSinceLastVisit(profileId: string, since: Date | null, take = 10): Promise<MatchRow[]> {
-  return prisma.matchScore.findMany({ where: { profileId, job: { isLowQuality: false, firstSeenAt: { gt: since ?? new Date(Date.now() - 7 * 86400_000) } } }, include: matchInclude, orderBy: [{ total: "desc" }], take });
+  return prisma.matchScore.findMany({ where: { profileId, job: { isLowQuality: false, closedAt: null, firstSeenAt: { gt: since ?? new Date(Date.now() - 7 * 86400_000) } } }, include: matchInclude, orderBy: [{ total: "desc" }], take });
 }

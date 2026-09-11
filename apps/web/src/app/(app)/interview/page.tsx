@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function InterviewPage() {
   const { user, profile } = await requireOnboarded();
   const apps = await prisma.application.findMany({ where: { userId: user.id, status: { in: ["APPLIED", "SCREENING", "INTERVIEW"] } }, orderBy: { updatedAt: "desc" }, include: { job: { include: { company: true } } }, take: 20 });
-  const top = apps.length ? [] : await prisma.matchScore.findMany({ where: { profileId: profile.id, job: { isLowQuality: false } }, orderBy: { total: "desc" }, take: 5, include: { job: { include: { company: true } } } });
+  const top = apps.length ? [] : await prisma.matchScore.findMany({ where: { profileId: profile.id, job: { isLowQuality: false, closedAt: null } }, orderBy: { total: "desc" }, take: 5, include: { job: { include: { company: true } } } });
   const base = apps.length
     ? apps.map((a) => ({ id: a.job.id, title: a.job.title, company: a.job.company.name, status: statusLabel(a.status) }))
     : top.map((m) => ({ id: m.job.id, title: m.job.title, company: m.job.company.name, status: `${m.total}% fit` }));

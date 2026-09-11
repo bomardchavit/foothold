@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { extractSkills, numericTokens, skillCategory, type ResumeContent, type MatchBreakdown } from "@foothold/shared";
+import { extractSkills, numericTokens, skillCategory, skillMentioned, isTechnicalSkill, isEmployerSkill, roleFit, type ResumeContent, type MatchBreakdown } from "@foothold/shared";
 import type { FullProfile } from "../profile/service";
 import type { JobWithCompany } from "../matching/service";
 import { llmMode, structured, type LlmMode } from "../llm/client";
@@ -37,7 +37,7 @@ export function classifyText(text: string, sourceText: string, allowed: Allowed)
   for (const sk of extractSkills(text)) {
     if (skillCategory(sk) === "SOFT") continue;
     const low = sk.toLowerCase();
-    if (!allowed.skills.has(low) && !allowed.text.includes(low) && !sourceText.toLowerCase().includes(low)) issues.push(`mentions ${sk}, which is not in your profile`);
+    if (!allowed.skills.has(low) && !skillMentioned(sk, allowed.text) && !skillMentioned(sk, sourceText)) issues.push(`mentions ${sk}, which is not in your profile`);
   }
   const srcNums = new Set(numericTokens(sourceText));
   for (const n of numericTokens(text)) if (!srcNums.has(n) && !allowed.numbers.has(n)) issues.push(`introduces the number ${n}`);
@@ -59,10 +59,13 @@ function tailorHeuristic(profile: FullProfile, job: JobWithCompany, breakdown: M
   for (const e of base.experience) e.bullets = [...e.bullets].sort((a, b) => relevance(b.text, job) - relevance(a.text, job));
   for (const p of base.projects) p.bullets = [...p.bullets].sort((a, b) => relevance(b.text, job) - relevance(a.text, job));
   base.skills = [...base.skills].sort((a, b) => Number(skillsSet.has(b.name.toLowerCase())) - Number(skillsSet.has(a.name.toLowerCase())));
-  const matched = breakdown?.matchedSkills.slice(0, 5) ?? [];
+  const technical = (breakdown?.matchedSkills ?? []).filter((s) => isTechnicalSkill(s) && !isEmployerSkill(s, job.company.name));
+  const matched = (technical.length >= 2 ? technical : [...technical, ...base.skills.map((s) => s.name).filter((s) => isTechnicalSkill(s) && !technical.includes(s))]).slice(0, 5);
   const years = profile.yearsExperience;
   const role = profile.experiences[0];
-  const headline = profile.headline ?? (role ? `${role.title}` : job.title);
+  // Only point the headline at the posting when the title is actually in the candidate's lane.
+  const fit = roleFit(profile.targetRoles, job.title);
+  const headline = profile.headline ?? (fit != null && fit >= 0.5 ? job.title : role ? `${role.title}` : job.title);
   const summary = [
     `${headline} with ${years >= 1 ? `${years.toFixed(0)} years of experience` : "hands-on experience"}${matched.length ? ` in ${matched.join(", ")}` : ""}.`,
     role?.bullets[0] ? `Most recently at ${role.company}: ${role.bullets[0].text.replace(/\.$/, "")}.` : "",
@@ -135,7 +138,7 @@ export function assemble(base: ResumeContent, out: TailorOutput, allowed: Allowe
   const skills = [...orderedNames.map((n) => existing.get(n)!), ...base.skills.filter((s) => !orderedNames.includes(s.name.toLowerCase()))];
   for (const s of out.addedSkills) {
     if (existing.has(s.name.toLowerCase())) continue;
-    const inProfile = allowed.skills.has(s.name.toLowerCase()) || allowed.text.includes(s.name.toLowerCase());
+    const inProfile = allowed.skills.has(s.name.toLowerCase()) || skillMentioned(s.name, allowed.text);
     skills.push({ name: s.name, grounded: inProfile, changeKind: "added", reason: s.reason });
   }
   const headline = out.headline?.trim() || base.headline;

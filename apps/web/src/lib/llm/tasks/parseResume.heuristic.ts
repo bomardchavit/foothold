@@ -1,5 +1,8 @@
 import { canonicalizeSkill, extractSkills, skillCategory, isKnownSkill, type ParsedResume, type ParsedExperience } from "@foothold/shared";
 
+/** Categories a bullet may contribute to the skill list: concrete tools, not domain words ("operations", "dashboards"). */
+const BULLET_SKILL_CATEGORIES = new Set(["LANGUAGE", "FRAMEWORK", "TOOL", "CLOUD", "DATA", "DESIGN"]);
+
 const MONTH = "(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\\.?";
 const DATE_TOKEN = `(?:${MONTH}\\s+\\d{4}|\\d{1,2}\\/\\d{4}|\\d{4})`;
 const PRESENT = "(?:present|current|now|ongoing|today)";
@@ -224,7 +227,7 @@ export function parseResumeHeuristic(text: string): ParsedResume {
   const projects = parseProjects(get("projects"));
   const skillSection = parseSkills(get("skills"));
   const fromBullets = extractSkills([...experience.flatMap((e) => e.bullets), ...projects.flatMap((p) => p.bullets), ...projects.map((p) => p.description ?? "")].join("\n"))
-    .filter((s) => !["SOFT"].includes(skillCategory(s)));
+    .filter((s) => BULLET_SKILL_CATEGORIES.has(skillCategory(s))); // PRODUCT/DOMAIN only from an explicit Skills section
   const skills = [...new Set([...skillSection.map(canonicalizeSkill), ...fromBullets])].filter((s) => s.length > 1 || isKnownSkill(s)).slice(0, 120);
 
   return {

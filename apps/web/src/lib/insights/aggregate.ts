@@ -5,7 +5,7 @@ export interface SkillCount { skill: string; count: number; required: number }
 
 /** Skills that appear most across the candidate's top-100 matches but are absent from the profile. */
 export async function topSkillGaps(profileId: string, limit = 20): Promise<{ gaps: SkillCount[]; have: SkillCount[]; sampleSize: number }> {
-  const top = await prisma.matchScore.findMany({ where: { profileId, job: { isLowQuality: false } }, orderBy: { total: "desc" }, take: 100, select: { job: { select: { requiredSkills: true, preferredSkills: true } } } });
+  const top = await prisma.matchScore.findMany({ where: { profileId, job: { isLowQuality: false, closedAt: null } }, orderBy: { total: "desc" }, take: 100, select: { job: { select: { requiredSkills: true, preferredSkills: true } } } });
   const profile = await prisma.candidateProfile.findUnique({ where: { id: profileId }, include: { skills: true } });
   const have = new Set((profile?.skills ?? []).map((s) => s.canonical));
   const counts = new Map<string, SkillCount>();

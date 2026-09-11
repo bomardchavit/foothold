@@ -15,6 +15,7 @@ const lines = new Map<string, CtxLine>([
   ["P1", { id: "P1", kind: "P", label: "Skills", text: "Python, PostgreSQL" }],
   ["P2", { id: "P2", kind: "P", label: "bullet", text: "Cut p95 latency from 840ms to 210ms by adding Redis caching." }],
   ["J1", { id: "J1", kind: "J", label: "Required", text: "Kubernetes, Python" }],
+  ["M9", { id: "M9", kind: "M", label: "Missing required skills", text: "Java, C, C++, Kubernetes" }],
 ]);
 const allowed = allowedFromProfile(profile);
 
@@ -38,6 +39,21 @@ describe("copilot grounding checker", () => {
   });
   it("allows negated mentions of missing skills", () => {
     expect(checkGrounding("You do not list Kubernetes, which is required [J1].", lines, allowed, { requireCitations: true }).status).toBe("GROUNDED");
+  });
+  it("treats 'the posting asks for X, which is not in your profile' as a job claim, even with a long skill list", () => {
+    const r = checkGrounding("The main thing holding the score down: the posting also asks for Java, C, C++, Kubernetes [M9], which is not in your profile.", lines, allowed, { requireCitations: true });
+    expect(r.flags).toEqual([]);
+    expect(r.status).toBe("GROUNDED");
+    expect(checkGrounding("They require Kubernetes and Java [J1].", lines, allowed, { requireCitations: true }).status).toBe("GROUNDED");
+  });
+  it("does not demand a citation for a statement of absence", () => {
+    expect(checkGrounding("Required: Kubernetes [J1]. You don't have this in your profile.", lines, allowed, { requireCitations: true }).status).toBe("GROUNDED");
+    expect(checkGrounding("Preferred: Kubernetes [J1]. Not in your profile; optional for this role.", lines, allowed, { requireCitations: true }).status).toBe("GROUNDED");
+  });
+  it("uses word boundaries: the letter c in 'caching' is not the language C, 'algorithm' is not Go", () => {
+    expect(checkGrounding("You have used C, Rust and Java [P2].", lines, allowed, { requireCitations: true }).status).toBe("REJECTED");
+    expect(checkGrounding("You have written Go services [P2].", lines, allowed, { requireCitations: true }).status).toBe("REJECTED");
+    expect(checkGrounding("You have Redis experience [P2].", lines, allowed, { requireCitations: true }).status).toBe("GROUNDED");
   });
 });
 

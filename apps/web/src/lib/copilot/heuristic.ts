@@ -1,15 +1,23 @@
-import { expandImplied, extractSkills, type MatchBreakdown } from "@foothold/shared";
+import { expandImplied, extractSkills, isTechnicalSkill, isEmployerSkill, skillMentioned, type MatchBreakdown } from "@foothold/shared";
 import type { CtxLine } from "./context";
 
-export type Intent = "why" | "gaps" | "cover" | "interview" | "apply" | "general";
+export type Intent = "why" | "gaps" | "cover" | "interview" | "apply" | "job" | "greeting" | "general";
 export function detectIntent(q: string): Intent {
-  const s = q.toLowerCase();
+  const s = q.toLowerCase().trim();
+  if (/^(?:hi|hello|hey|yo|good (?:morning|afternoon|evening)|thanks?|thank you|ok|okay)\b[!. ]*$/.test(s)) return "greeting";
   if (/cover letter/.test(s)) return "cover";
   if (/interview|prep/.test(s)) return "interview";
   if (/should i apply|worth applying|apply\?/.test(s)) return "apply";
+  if (/salary|pay|compensation|comp\b|benefit|equity|bonus|remote|hybrid|on-?site|location|where is|visa|sponsor|h-?1b|years of experience|how many years|level|seniority|full[- ]time|part[- ]time|intern|contract/.test(s)) return "job";
   if (/gap|missing|lack|weak|improve|what am i missing/.test(s)) return "gaps";
   if (/why|match|fit|good for me|strength/.test(s)) return "why";
   return "general";
+}
+
+/** Order missing skills so real technical gaps (languages, frameworks, tools) come before domain words; drop the employer's own name. */
+function rankMissing(list: string[], company: string | null): string[] {
+  const clean = list.filter((s) => !isEmployerSkill(s, company));
+  return [...clean.filter(isTechnicalSkill), ...clean.filter((s) => !isTechnicalSkill(s))];
 }
 
 interface Ctx { profile: CtxLine[]; job: CtxLine[]; match: CtxLine[]; breakdown: MatchBreakdown | null; candidateName: string; jobTitle: string | null; company: string | null }
@@ -18,7 +26,7 @@ function skillLine(profile: CtxLine[], skill: string): CtxLine | undefined {
   const low = skill.toLowerCase();
   return profile.find((l) => l.ref?.type === "bullet" && extractSkills(l.text).some((s) => s.toLowerCase() === low)) ?? profile.find((l) => l.ref?.type === "skills" && l.text.toLowerCase().split(/,\s*/).includes(low));
 }
-const jobLineFor = (job: CtxLine[], skill: string) => job.find((l) => l.label !== "Role" && l.text.toLowerCase().includes(skill.toLowerCase()));
+const jobLineFor = (job: CtxLine[], skill: string) => job.find((l) => l.label !== "Role" && skillMentioned(skill, l.text));
 const mLine = (match: CtxLine[], label: string) => match.find((l) => l.label === label);
 
 /** Deterministic, fully cited answers used when no Anthropic key is configured (and as the e2e baseline). */
@@ -39,8 +47,33 @@ export function answerHeuristic(intent: Intent, ctx: Ctx): string {
   const total = mLine(match, "Overall fit");
   const skillsC = b.components.find((c) => c.key === "skills");
   const matched = b.matchedSkills.slice(0, 6).map((s) => ({ s, p: skillLine(profile, s), j: jobLineFor(job, s) }));
-  const missingReq = b.missingRequired;
-  const missingPref = b.missingPreferred;
+  const missingReq = rankMissing(b.missingRequired, ctx.company);
+  const missingPref = rankMissing(b.missingPreferred, ctx.company);
+  const missingLine = mLine(match, "Missing required skills");
+  const missingPrefLine = mLine(match, "Missing preferred skills");
+
+  if (intent === "greeting") {
+    return `Hi ${name}. I can only talk about what is in your profile and this posting, so ask me why you match ${ctx.jobTitle} at ${ctx.company} ${cite(role)}, what your gaps are, whether to apply, or for a cover letter or interview prep.`;
+  }
+  if (intent === "job") {
+    const lines = [`What the posting says about ${ctx.jobTitle} at ${ctx.company} ${cite(role)}:`];
+    const roleText = role?.text ?? "";
+    const salary = /Salary ([^.]+)\./.exec(roleText);
+    lines.push(salary ? `• Pay: ${salary[1]} ${cite(role)}.` : `• Pay: the posting does not state a salary range ${cite(role)}.`);
+    const head = roleText.split(/\. Level:/)[0];
+    const at = head.indexOf(` at ${ctx.company}`);
+    const locRaw = at >= 0 ? head.slice(at + ` at ${ctx.company}`.length).replace(/^,\s*/, "").replace(/\s*\(remote\)\s*$/, "").trim() : "";
+    lines.push(`• Location: ${locRaw || "not stated"}${/\(remote\)/.test(head) ? ", remote-friendly" : ""} ${cite(role)}.`);
+    const level = /Level: ([^.]+)\./.exec(roleText);
+    const years = /Years: ([^.]+)\./.exec(roleText);
+    lines.push(`• Level: ${level ? level[1] : "not stated"}${years ? `, ${years[1]} years` : ""} ${cite(role)}.`);
+    const sponsor = job.find((l) => l.label === "Sponsorship");
+    lines.push(sponsor ? `• Sponsorship: ${sponsor.text} ${cite(sponsor)}` : `• Sponsorship: no H-1B filing history found for this employer in the USCIS data, so treat sponsorship as unknown.`);
+    const benefits = job.filter((l) => l.label === "Posting" && /\b(401\(k\)|health|dental|vision|pto|paid time off|parental|equity|stock|rsu|bonus|benefits)\b/i.test(l.text)).slice(0, 3);
+    if (benefits.length) lines.push(`• Benefits mentioned: ${benefits.map((l) => `"${l.text.slice(0, 100)}" ${cite(l)}`).join("; ")}`);
+    lines.push(`(general) Anything not listed above is not in the posting, so ask the recruiter rather than assuming.`);
+    return lines.join("\n");
+  }
   const implied = expandImplied(profile.filter((l) => l.ref?.type === "skills").flatMap((l) => l.text.split(/,\s*/)));
 
   if (intent === "why") {
@@ -49,7 +82,7 @@ export function answerHeuristic(intent: Intent, ctx: Ctx): string {
       ...matched.filter((m) => m.p).map((m) => `• You have ${m.s} ${cite(m.p!)}, which the posting asks for ${cite(m.j ?? job[1])}.`),
       ...b.components.filter((c) => c.key !== "skills" && c.status === "scored" && c.score >= 70).map((c) => `• ${c.label}: ${c.evidence[0]} ${cite(mLine(match, c.label))}`),
       skillsC ? `Skills overlap is ${skillsC.score}/100 ${cite(mLine(match, "Skills overlap"))}.` : "",
-      missingReq.length ? `The main thing holding the score down: the posting also asks for ${missingReq.slice(0, 4).join(", ")} ${cite(mLine(match, "Missing required skills"))}, which is not in your profile. Ask me about gaps for what to do about that.` : `Nothing required by the posting is missing from your profile ${cite(mLine(match, "Matched skills"))}.`,
+      missingReq.length ? `The main thing holding the score down: the posting also asks for ${missingReq.slice(0, 4).join(", ")} ${cite(missingLine)}, which is not in your profile. Ask me about gaps for what to do about that.` : `Nothing required by the posting is missing from your profile ${cite(mLine(match, "Matched skills"))}.`,
     ];
     return lines.filter(Boolean).join("\n");
   }
@@ -58,10 +91,10 @@ export function answerHeuristic(intent: Intent, ctx: Ctx): string {
     const lines = [`Gaps for ${ctx.jobTitle} at ${ctx.company} ${cite(role)}:`];
     for (const s of missingReq.slice(0, 6)) {
       const via = [...implied].find((i) => i.toLowerCase() === s.toLowerCase());
-      const evidence = profile.find((l) => l.ref?.type === "bullet" && l.text.toLowerCase().includes(s.toLowerCase().split(" ")[0]));
-      lines.push(`• Required: ${s} ${cite(jobLineFor(job, s) ?? job[1])}. ${via ? `You do not list it, but related tools in your profile imply it; make it explicit.` : evidence ? `Your bullet "${evidence.text.slice(0, 70)}…" ${cite(evidence)} is the closest evidence; it does not name ${s}.` : `You don't have this in your profile. If you have used it, add it; if not, it is a real gap.`}`);
+      const evidence = profile.find((l) => l.ref?.type === "bullet" && skillMentioned(s, l.text));
+      lines.push(`• Required: ${s} ${cite(jobLineFor(job, s) ?? job[1])}. ${via ? `You do not list it ${cite(missingLine)}, but related tools in your profile imply it; make it explicit.` : evidence ? `Your bullet "${evidence.text.slice(0, 70)}…" ${cite(evidence)} is the closest evidence; it does not name ${s}.` : `You don't have this in your profile ${cite(missingLine)}. If you have used it, add it; if not, it is a real gap.`}`);
     }
-    for (const s of missingPref.slice(0, 4)) lines.push(`• Preferred: ${s} ${cite(jobLineFor(job, s) ?? job[2] ?? job[1])}. Not in your profile; optional for this role.`);
+    for (const s of missingPref.slice(0, 4)) lines.push(`• Preferred: ${s} ${cite(jobLineFor(job, s) ?? job[2] ?? job[1])}. Not in your profile ${cite(missingPrefLine)}; optional for this role.`);
     for (const c of b.components) if (c.status === "scored" && c.score < 70 && c.key !== "skills") lines.push(`• ${c.label}: ${c.evidence[0]} ${cite(mLine(match, c.label))}`);
     return lines.join("\n");
   }
@@ -94,10 +127,16 @@ export function answerHeuristic(intent: Intent, ctx: Ctx): string {
       `${verdict} Your fit is ${b.total}/100 ${cite(total)}.`,
       `For you: ${b.components.filter((c) => c.status === "scored" && c.score >= 70).map((c) => `${c.label} ${c.score} ${cite(mLine(match, c.label))}`).join(", ") || "not much yet"}.`,
       `Against you: ${b.components.filter((c) => c.status === "scored" && c.score < 70).map((c) => `${c.label} ${c.score} ${cite(mLine(match, c.label))}`).join(", ") || "nothing significant"}.`,
-      missingReq.length ? `Missing required skills: ${missingReq.join(", ")} ${cite(mLine(match, "Missing required skills"))}.` : "",
+      missingReq.length ? `Missing required skills: ${missingReq.slice(0, 6).join(", ")} ${cite(missingLine)}.` : "",
     ].filter(Boolean).join("\n\n");
   }
-  return answerHeuristic("why", ctx);
+  // general: an on-topic default that says what it can answer instead of pretending the question was "why do I match"
+  return [
+    `I can only answer from your profile and this posting, so here is the short version for ${ctx.jobTitle} at ${ctx.company} ${cite(role)}: your fit is ${b.total}/100 ${cite(total)}.`,
+    matched.filter((m) => m.p).length ? `You already have ${matched.filter((m) => m.p).slice(0, 4).map((m) => `${m.s} ${cite(m.p!)}`).join(", ")}.` : "",
+    missingReq.length ? `Not in your profile: ${missingReq.slice(0, 4).join(", ")} ${cite(missingLine)}.` : "",
+    `Ask me why you match, what your gaps are, whether to apply, about pay or location, or for a cover letter or interview prep.`,
+  ].filter(Boolean).join("\n\n");
 }
 
 const cite = (l: CtxLine | undefined) => (l ? `[${l.id}]` : "");
