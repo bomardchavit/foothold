@@ -25,6 +25,9 @@ On first launch the desktop app asks for a server address (or uses the one baked
 `/api/version` before saving it. Magic-link emails open in the browser, not in the app, so the app has a
 **File → Paste Sign-in Link…** screen; Google sign-in works in the window directly.
 
+Deployment (Fly.io config, Postgres requirements, pointing the apps at it) is in
+[docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Ship an update
 
 ```bash

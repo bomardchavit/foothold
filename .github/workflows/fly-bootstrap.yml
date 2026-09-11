@@ -1,0 +1,48 @@
+name: fly bootstrap
+
+# One-time setup of the Fly app, volume and secrets. Run it by hand (Actions -> fly bootstrap -> Run workflow)
+# after FLY_API_TOKEN is in the repository secrets. It creates billable resources on your Fly account, which is
+# why it never runs automatically. Everything here is idempotent.
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Fly app name
+        default: foothold
+      region:
+        description: Primary region
+        default: iad
+      volume_gb:
+        description: Volume size in GB (logos, résumés, exports)
+        default: "3"
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      APP: ${{ inputs.app }}
+      REGION: ${{ inputs.region }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Create the app
+        run: flyctl apps list | grep -qw "$APP" || flyctl apps create "$APP"
+      - name: Create the data volume
+        run: |
+          if ! flyctl volumes list -a "$APP" | grep -q foothold_data; then
+            flyctl volumes create foothold_data --size "${{ inputs.volume_gb }}" --region "$REGION" -a "$APP" --yes
+          fi
+      - name: Set AUTH_SECRET, AUTH_URL and APP_URL if they are missing
+        run: |
+          if ! flyctl secrets list -a "$APP" | grep -q AUTH_SECRET; then
+            flyctl secrets set -a "$APP" --stage \
+              AUTH_SECRET="$(openssl rand -base64 32)" \
+              AUTH_URL="https://$APP.fly.dev" \
+              APP_URL="https://$APP.fly.dev"
+          fi
+      - name: What is left to do
+        run: |
+          echo "Set DATABASE_URL (Postgres 15+ with pgvector), then push to main to deploy:"
+          echo "  flyctl postgres create --name $APP-db --region $REGION && flyctl postgres attach $APP-db --app $APP"
+          echo "  or: flyctl secrets set -a $APP DATABASE_URL='postgres://...'  (Neon, Supabase, RDS)"
