@@ -64,7 +64,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
           {cards.length === 0 ? <EmptyState tab={filters.tab} hidden={filters.hidden} filtered={!isDefaultFilters(filters)} computing={totalMatches === 0} /> : cards.map((c) => <JobCard key={c.jobId} data={c} />)}
         </div>
         <div className="max-w-[980px] px-4 sm:px-6"><Pagination page={filters.page} pageSize={feed.pageSize} count={feed.count} /></div>
-        <p className="mt-6 max-w-[980px] px-4 text-xs text-muted-foreground sm:px-6" data-testid="feed-count">
+        <p className="mt-6 max-w-[980px] px-4 text-xs text-muted-foreground sm:px-6" data-testid="feed-count" data-count={feed.count} data-lowq={feed.hidden}>
           {feed.count.toLocaleString()} roles{feed.hidden > 0 ? ` · ${feed.hidden.toLocaleString()} hidden as low quality` : ""}
           {freshness.addedToday > 0 ? ` · ${freshness.addedToday.toLocaleString()} posted today` : ""}
           {freshness.lastRunAt ? ` · ${freshness.sources} boards, last checked ${formatDistanceToNowStrict(freshness.lastRunAt, { addSuffix: true })}` : ""}

@@ -5,7 +5,7 @@ test("the seeded profile sees ranked jobs with an interrogable score breakdown",
   await signIn(page, "demo@foothold.local");
   await page.goto("/jobs");
   await expectOnFeed(page);
-  const count = Number((await page.getByTestId("feed-count").textContent())?.match(/\d+/)?.[0]);
+  const count = Number(await page.getByTestId("feed-count").getAttribute("data-count"));
   expect(count).toBeGreaterThan(50);
 
   // Cards never show a bare number: the segmented bar is present
@@ -23,13 +23,14 @@ test("the seeded profile sees ranked jobs with an interrogable score breakdown",
 
   // Filters: raising the threshold shrinks the list; H-1B filter works
   await page.goto("/jobs?min=80");
-  const filtered = Number((await page.getByTestId("feed-count").textContent())?.match(/\d+/)?.[0]);
+  const filtered = Number(await page.getByTestId("feed-count").getAttribute("data-count"));
   expect(filtered).toBeLessThan(count);
   await page.goto("/jobs?h1b=YES");
   await expect(page.getByTestId("h1b-badge").first()).toContainText(/sponsor/i);
   // Low-quality listings hidden by default, visible on toggle
   await page.goto("/jobs");
   await expect(page.getByTestId("feed-count")).toContainText("hidden as low quality");
+  expect(Number(await page.getByTestId("feed-count").getAttribute("data-lowq"))).toBeGreaterThan(0);
   await page.goto("/jobs?lowq=1");
   await expect(page.getByTestId("quality-flag").first()).toBeVisible();
 });
@@ -76,12 +77,18 @@ test("liking, hiding, tabs and saved filters work on the jobs workspace", async 
   // Back to the recommended feed by URL: clicking the tab is a client navigation whose timing is not what this asserts.
   await page.goto("/jobs?q=Solutions");
   await expect(page.locator(`[data-job-id="${jobId}"]`)).toBeVisible();
+  // The card disappears optimistically; reload before asserting so what is checked is the server's answer, not the
+  // client's guess about it.
   await page.locator(`[data-job-id="${jobId}"]`).getByTestId("hide-job").click();
+  await expect(page.locator(`[data-job-id="${jobId}"]`)).toHaveCount(0);
+  await page.reload();
   await expect(page.locator(`[data-job-id="${jobId}"]`)).toHaveCount(0);
   await page.getByTestId("chip-hidden").click();
   await expect(page).toHaveURL(/hidden=1/);
   await expect(page.locator(`[data-job-id="${jobId}"]`)).toBeVisible();
   await page.locator(`[data-job-id="${jobId}"]`).getByTestId("hide-job").click(); // restore
+  await expect(page.locator(`[data-job-id="${jobId}"]`)).toHaveCount(0);
+  await page.reload();
   await expect(page.locator(`[data-job-id="${jobId}"]`)).toHaveCount(0);
   await page.goto("/jobs?work=REMOTE&type=FULL_TIME");
   await page.getByTestId("save-filter").click();
