@@ -1,6 +1,6 @@
 import type { JobSourceKind } from "@prisma/client";
 import { decodeEntities } from "@foothold/shared";
-import { politeText, politeFetch, RobotsDisallowed } from "./crawl/fetcher";
+import { politeText, politeFetch, RobotsDisallowed, Blocked } from "./crawl/fetcher";
 
 export interface DiscoveredSource { kind: JobSourceKind; slug: string; name: string; url: string; evidence: string }
 
@@ -87,7 +87,11 @@ export async function discoverSources(input: string): Promise<{ name: string; fo
     const t = /<title[^>]*>([^<]{1,80})<\/title>/i.exec(html)?.[1]; if (t) name = decodeEntities(t).split(/[|–-]/)[0].trim() || name;
     scan(html, home.href);
     for (const l of links(html, home)) if (!pages.includes(l)) pages.push(l);
-  } catch (e) { if (e instanceof RobotsDisallowed) blocked.push(home.href); else throw e; }
+  } catch (e) {
+    // A site that will not serve its homepage to a bot still has a public ATS board; the slug probe below finds it.
+    blocked.push(home.href);
+    if (!(e instanceof RobotsDisallowed) && !(e instanceof Blocked)) console.warn("[discover] homepage fetch failed", home.href, e instanceof Error ? e.message : e);
+  }
   for (const url of pages.slice(1, 5)) {
     try {
       const html = await politeText(url); visited.push(url); scan(html, url);

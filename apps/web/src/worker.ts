@@ -17,7 +17,9 @@ async function main() {
       }
     });
   }
-  await boss.schedule("ingest.all", "0 */6 * * *", {}, { tz: "UTC" });
+  // Same cadence as the in-process scheduler: poll what is due every ten minutes, tidy up hourly.
+  await boss.schedule("ingest.poll", "*/10 * * * *", {}, { tz: "UTC" });
+  await boss.schedule("ingest.housekeeping", "20 * * * *", {}, { tz: "UTC" });
   await boss.schedule("digest.daily", "0 13 * * *", {}, { tz: "UTC" });
   console.log("[worker] listening for jobs:", Object.keys(JOB_HANDLERS).join(", "));
 }

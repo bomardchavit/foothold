@@ -9,6 +9,7 @@ export type JobPayloads = {
   "ingest.source": { sourceId: string };
   "ingest.all": Record<string, never>;
   "ingest.poll": Record<string, never>;
+  "ingest.housekeeping": Record<string, never>;
   "logos.resolve": { limit?: number; retry?: boolean };
   "digest.daily": Record<string, never>;
   "h1b.refresh": Record<string, never>;
@@ -26,6 +27,7 @@ export const JOB_HANDLERS: { [N in JobName]: Handler<N> } = {
   "ingest.source": async (d) => { await (await import("@/lib/ingest/run")).ingestSourceJob(d); },
   "ingest.all": async () => (await import("@/lib/ingest/run")).ingestAllJob(),
   "ingest.poll": async () => { const { pollDueSources } = await import("@/lib/ingest/run"); await pollDueSources(); },
+  "ingest.housekeeping": async () => (await import("@/lib/ingest/run")).housekeepingJob(),
   "logos.resolve": async (d) => { await (await import("@/lib/logos/resolve")).resolveMissingLogos(d.limit ?? 50, { retry: d.retry }); },
   "digest.daily": async () => { await (await import("@/lib/digest/send")).dailyDigestJob(); },
   "h1b.refresh": async () => { await (await import("@/lib/h1b/signal")).refreshAllCompanySignals(); },
