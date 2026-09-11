@@ -45,12 +45,15 @@ export default async function DownloadPage() {
               <a key={o.key} href={o.asset?.url ?? release.url} className="focus-ring group flex items-center gap-3 rounded-2xl border border-border/80 bg-card p-4 transition hover:border-primary/50 hover:shadow-[0_8px_28px_-14px_rgba(0,0,0,0.25)]">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted"><o.icon className="h-5 w-5" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[15px] font-semibold">{o.title}{o.key === platform && <span className="ml-2 rounded-md bg-primary/12 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary-strong">Your computer</span>}</span>
+                  <span className="block text-[15px] font-semibold">{o.title}{o.key === platform && <span className="ml-2 inline-block whitespace-nowrap rounded-md bg-primary/12 px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide text-primary-strong">Your computer</span>}</span>
                   <span className="block text-[13px] text-muted-foreground">{o.note}{o.asset ? ` · ${mb(o.asset.size)}` : " · not in this release"}</span>
                 </span>
               </a>
             ))}
           </div>
+          {platform.startsWith("mac") && (
+            <p className="mt-3 text-[13px] text-muted-foreground">Not sure which Mac you have? Apple menu → About This Mac: a chip that starts with “Apple” is Apple Silicon.</p>
+          )}
           <p className="mt-3 text-[13px] text-muted-foreground">
             Version {release.version}{release.publishedAt ? ` · released ${new Date(release.publishedAt).toLocaleDateString()}` : ""} · <a className="underline" href={release.url}>release notes and checksums</a>
           </p>

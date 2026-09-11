@@ -30,15 +30,20 @@ export async function latestRelease(): Promise<LatestRelease | null> {
 
 export type Platform = "mac-arm" | "mac-intel" | "windows" | "linux" | "unknown";
 
-/** Best guess at the visitor's platform, used only to put the right button first. */
+/**
+ * Best guess at the visitor's platform, used only to order the buttons. Browsers on macOS all report
+ * "Intel Mac OS X" whatever the chip, so a Mac is reported as Apple Silicon (every Mac since 2020) and the
+ * page keeps the Intel build one click away.
+ */
 export async function detectPlatform(): Promise<{ platform: Platform; inDesktopApp: boolean }> {
   const ua = (await headers()).get("user-agent") ?? "";
   const inDesktopApp = /FootholdDesktop/i.test(ua);
   if (/Windows/i.test(ua)) return { platform: "windows", inDesktopApp };
-  if (/Mac OS X|Macintosh/i.test(ua)) return { platform: /ARM|Apple Silicon/i.test(ua) ? "mac-arm" : "mac-intel", inDesktopApp };
+  if (/Mac OS X|Macintosh/i.test(ua)) return { platform: "mac-arm", inDesktopApp };
   if (/Linux|X11/i.test(ua) && !/Android/i.test(ua)) return { platform: "linux", inDesktopApp };
   return { platform: "unknown", inDesktopApp };
 }
 
 export const findAsset = (assets: ReleaseAsset[], test: RegExp) => assets.find((a) => test.test(a.name)) ?? null;
-export const mb = (bytes: number) => `${Math.round(bytes / 1_048_576)} MB`;
+/** Human size: a 46 KB extension should not read as "0 MB". */
+export const mb = (bytes: number) => (bytes < 1_048_576 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${Math.round(bytes / 1_048_576)} MB`);
