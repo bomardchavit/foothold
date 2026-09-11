@@ -24,20 +24,40 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      # electron-builder treats an empty CSC_LINK as a path, so the signing variables are only exported when
+      # the certificate actually exists. Without them the build still publishes: macOS users get a Gatekeeper
+      # warning and have to update by downloading, which is the honest trade until a Developer ID is added.
+      - name: Configure macOS signing
+        if: runner.os == 'macOS'
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID_SECRET: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD_SECRET: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID_SECRET: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$MAC_CSC_LINK" ]; then
+            {
+              echo "CSC_LINK=$MAC_CSC_LINK"
+              echo "CSC_KEY_PASSWORD=$MAC_CSC_KEY_PASSWORD"
+              echo "CSC_IDENTITY_AUTO_DISCOVERY=true"
+            } >> "$GITHUB_ENV"
+            [ -n "$APPLE_ID_SECRET" ] && {
+              echo "APPLE_ID=$APPLE_ID_SECRET"
+              echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_APP_SPECIFIC_PASSWORD_SECRET"
+              echo "APPLE_TEAM_ID=$APPLE_TEAM_ID_SECRET"
+            } >> "$GITHUB_ENV"
+            echo "Signing with the provided Developer ID certificate."
+          else
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+            echo "No MAC_CSC_LINK secret: publishing an unsigned build."
+          fi
       - name: Build and publish installers
         working-directory: apps/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Repository variable: the deployed server new installs open on first launch.
           FOOTHOLD_APP_URL: ${{ vars.FOOTHOLD_APP_URL }}
-          # macOS signing + notarization. Without these the build still publishes, but macOS users see a
-          # Gatekeeper warning and auto-update cannot install silently.
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' }}
         run: npm run release
 
   extension:
