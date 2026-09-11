@@ -65,7 +65,7 @@ async function main() {
       for (const f of r.found) { console.log(`found ${f.kind} ${f.slug} (${f.url}) via ${f.evidence}`); await runKindSlug(f.kind, f.slug, f.name, domain); }
       return;
     }
-    if (cmd === "bootstrap") { const { bootstrapUsCompanies } = await import("../src/lib/ingest/run"); await bootstrapUsCompanies({ limit: arg ? Number(arg) : undefined }); return; }
+    if (cmd === "bootstrap") { const { bootstrapUsCompanies } = await import("../src/lib/ingest/run"); await bootstrapUsCompanies({ limit: arg ? Number(arg) : undefined, all: argv.includes("--all") }); return; }
     if (cmd === "logos") {
       const { resolveMissingLogos, revalidateStoredLogos } = await import("../src/lib/logos/resolve");
       if (process.argv.includes("--revalidate")) { console.log("replaced", await revalidateStoredLogos(), "stored logos that failed the shape check"); return; }

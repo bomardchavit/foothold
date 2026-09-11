@@ -284,25 +284,36 @@ export async function mergeDuplicatePostings(): Promise<number> {
 }
 
 /** Register the curated US companies (known boards directly, the rest through discovery) and ingest them. */
-export async function bootstrapUsCompanies(opts: { limit?: number; onProgress?: (msg: string) => void } = {}) {
+/** No company may hold up the bootstrap: discovery walks a site, and some sites are very slow. */
+const BOOTSTRAP_TIMEOUT_MS = Number(process.env.BOOTSTRAP_TIMEOUT_MS ?? 120_000);
+const withTimeout = <T>(work: Promise<T>, ms: number, what: string) =>
+  Promise.race([work, new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${what} timed out after ${Math.round(ms / 1000)}s`)), ms).unref())]);
+
+/**
+ * Register the curated employers and pull their first batch of postings. Companies already registered are skipped, so
+ * re-running only works on what is missing (pass `all: true` to force a full pass).
+ */
+export async function bootstrapUsCompanies(opts: { limit?: number; all?: boolean; onProgress?: (msg: string) => void } = {}) {
   const { US_COMPANIES } = await import("./us-companies");
   const { discoverSources } = await import("./discover");
   const list = opts.limit ? US_COMPANIES.slice(0, opts.limit) : US_COMPANIES;
   const log = opts.onProgress ?? ((m: string) => console.log("[bootstrap]", m));
-  let registered = 0, jobs = 0;
+  const known = new Set((await prisma.jobSource.findMany({ where: { domain: { not: null } }, select: { domain: true } })).map((s) => s.domain!.toLowerCase()));
+  let registered = 0, jobs = 0, skippedKnown = 0;
   for (const c of list) {
+    if (!opts.all && known.has(c.domain.toLowerCase())) { skippedKnown++; continue; }
     try {
       let sources: Array<{ kind: JobSourceKind; slug: string }> = [];
       if (c.kind && c.slug) sources = [{ kind: c.kind, slug: c.slug }];
       else {
-        const r = await discoverSources(c.domain);
+        const r = await withTimeout(discoverSources(c.domain), BOOTSTRAP_TIMEOUT_MS, `${c.name} discovery`);
         sources = r.found.map((f) => ({ kind: f.kind, slug: f.slug }));
         if (!sources.length) { log(`${c.name}: no public job source found`); continue; }
       }
       for (const src of sources) {
         const row = await prisma.jobSource.upsert({ where: { kind_slug: { kind: src.kind, slug: src.slug } }, create: { kind: src.kind, slug: src.slug, name: c.name, domain: c.domain, enabled: true }, update: { name: c.name, domain: c.domain, enabled: true } });
         registered++;
-        const r = await ingestSourceJob({ sourceId: row.id });
+        const r = await withTimeout(ingestSourceJob({ sourceId: row.id }), BOOTSTRAP_TIMEOUT_MS, `${c.name} ingest`);
         jobs += r?.inserted ?? 0;
         const unchanged = r && "notModified" in r && r.notModified;
         log(`${c.name} (${src.kind.toLowerCase()}/${src.slug}): ${unchanged ? "no change since the last poll" : `${r?.fetched ?? 0} listed, ${r?.inserted ?? 0} new${r?.updated ? `, ${r.updated} updated` : ""}${r?.skipped ? `, ${r.skipped} outside scope` : ""}`}`);
@@ -310,6 +321,6 @@ export async function bootstrapUsCompanies(opts: { limit?: number; onProgress?: 
     } catch (e) { log(`${c.name}: failed (${e instanceof Error ? e.message : String(e)})`); }
   }
   await resolveMissingLogos(300).catch(() => 0);
-  log(`done: ${registered} sources, ${jobs} new jobs`);
+  log(`done: ${registered} sources, ${jobs} new jobs${skippedKnown ? `, ${skippedKnown} already registered` : ""}`);
   return { registered, jobs };
 }
