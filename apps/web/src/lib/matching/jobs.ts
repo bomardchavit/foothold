@@ -1,6 +1,6 @@
 import { prisma } from "../db";
 import { embedTexts } from "../embeddings";
-import { setJobEmbedding, setProfileEmbedding, nearestJobIdsForProfile, cosineForJobs } from "../vectors";
+import { setJobEmbedding, setProfileEmbedding, cosineForJobs } from "../vectors";
 import { getFullProfile, profileEmbeddingText } from "../profile/service";
 import { computeBreakdown, upsertMatches } from "./service";
 
@@ -17,23 +17,22 @@ export async function embedProfileJob({ profileId }: { profileId: string }) {
   await matchProfileJob({ profileId });
 }
 
+/** Score every open posting for one profile (the feed ranks the whole catalogue, not a nearest-neighbour sample), batched by cursor. */
 export async function matchProfileJob({ profileId }: { profileId: string }) {
   const profile = await prisma.candidateProfile.findUnique({ where: { id: profileId }, include: { skills: true } });
   if (!profile) return;
-  const nearest = await nearestJobIdsForProfile(profileId, 500);
-  const cosines = new Map(nearest.map((n) => [n.id, n.cosine]));
-  const ids = new Set(nearest.map((n) => n.id));
-  if (ids.size === 0) {
-    const recent = await prisma.job.findMany({ where: { isLowQuality: false, closedAt: null }, orderBy: { firstSeenAt: "desc" }, take: 500, select: { id: true } });
-    for (const r of recent) ids.add(r.id);
+  let cursor: string | undefined;
+  for (;;) {
+    const jobs = await prisma.job.findMany({
+      where: { isLowQuality: false, closedAt: null }, include: { company: true }, orderBy: { id: "asc" }, take: 400,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    });
+    if (!jobs.length) break;
+    const cosines = await cosineForJobs(profileId, jobs.map((j) => j.id));
+    await upsertMatches(profile, jobs.map((job) => ({ jobId: job.id, breakdown: computeBreakdown(profile, job, cosines.get(job.id) ?? null) })));
+    cursor = jobs[jobs.length - 1].id;
+    if (jobs.length < 400) break;
   }
-  const existing = await prisma.matchScore.findMany({ where: { profileId }, select: { jobId: true } });
-  for (const e of existing) ids.add(e.jobId);
-  const jobs = await prisma.job.findMany({ where: { id: { in: [...ids] } }, include: { company: true } });
-  const missing = jobs.filter((j) => !cosines.has(j.id)).map((j) => j.id);
-  for (const [k, v] of await cosineForJobs(profileId, missing)) cosines.set(k, v);
-  const rows = jobs.map((job) => ({ jobId: job.id, breakdown: computeBreakdown(profile, job, cosines.get(job.id) ?? null) }));
-  await upsertMatches(profile, rows);
 }
 
 export async function matchJobsJob({ jobIds }: { jobIds: string[] }) {

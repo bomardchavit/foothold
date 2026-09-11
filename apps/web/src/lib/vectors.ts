@@ -15,19 +15,6 @@ export async function setProfileEmbedding(profileId: string, vec: number[], prov
   await prisma.$executeRaw`UPDATE "CandidateProfile" SET "embedding" = ${toVectorLiteral(vec)}::vector, "embeddingProvider" = ${provider} WHERE "id" = ${profileId}`;
 }
 
-/** Candidate set for scoring: nearest jobs by cosine, restricted to fresh, non-flagged postings. */
-export async function nearestJobIdsForProfile(profileId: string, limit = 500, maxAgeDays = 60): Promise<Array<{ id: string; cosine: number }>> {
-  const rows = await prisma.$queryRaw<Array<{ id: string; cosine: number }>>(Prisma.sql`
-    SELECT j."id", (1 - (j."embedding" <=> p."embedding"))::float8 AS cosine
-    FROM "Job" j, "CandidateProfile" p
-    WHERE p."id" = ${profileId} AND p."embedding" IS NOT NULL AND j."embedding" IS NOT NULL
-      AND j."isLowQuality" = false
-      AND COALESCE(j."postedAt", j."firstSeenAt") > NOW() - (${maxAgeDays} || ' days')::interval
-    ORDER BY j."embedding" <=> p."embedding"
-    LIMIT ${limit}`);
-  return rows;
-}
-
 export async function cosineForJobs(profileId: string, jobIds: string[]): Promise<Map<string, number>> {
   if (!jobIds.length) return new Map();
   const rows = await prisma.$queryRaw<Array<{ id: string; cosine: number | null }>>(Prisma.sql`
