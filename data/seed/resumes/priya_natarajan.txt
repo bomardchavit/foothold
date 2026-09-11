@@ -1,0 +1,38 @@
+Priya Natarajan
+San Francisco, CA | priya.natarajan@example.com | (415) 555-0142 | linkedin.com/in/priyanatarajan | github.com/pnatarajan
+Software Engineer
+
+SUMMARY
+Backend-leaning full-stack engineer with 4 years of experience building payment and marketplace systems in Python and TypeScript. Comfortable owning services end to end, from schema design to on-call.
+
+EXPERIENCE
+Software Engineer II | Sable Payments | San Francisco, CA | Jun 2022 – Present
+• Designed and shipped a ledger reconciliation service in Python and PostgreSQL that processes 2.1M transactions per day with 99.98% accuracy.
+• Cut p95 latency of the payouts API from 840ms to 210ms by adding Redis caching and rewriting three N+1 queries.
+• Led migration of 14 cron jobs to Airflow on AWS (ECS), reducing failed runs by 60%.
+• Built React and TypeScript dashboards used by 40 operations analysts to investigate disputed transactions.
+• Mentored two new-grad engineers and ran the team's weekly design review.
+
+Software Engineer | Fernweh | New York, NY | Jul 2020 – May 2022
+• Built booking and inventory APIs in Django REST Framework serving 300k monthly travelers.
+• Implemented Stripe payments integration including refunds, chargebacks, and 3DS flows.
+• Introduced GitHub Actions CI with pytest and Playwright, taking deploy frequency from weekly to daily.
+• Wrote SQL reports in PostgreSQL and dbt for the finance team.
+
+Software Engineering Intern | Northwind Labs | Remote | Jun 2019 – Aug 2019
+• Prototyped a log search feature in Go and Elasticsearch, demoed to customers at the summer offsite.
+
+EDUCATION
+University of Illinois Urbana-Champaign | B.S. Computer Science | Aug 2016 – May 2020 | GPA: 3.7
+
+PROJECTS
+Splitwise-style expense tracker | Next.js, Prisma, PostgreSQL
+• Open-source app with 1.2k GitHub stars; supports multi-currency groups and OCR receipt import.
+Latency budget CLI | Go
+• Command-line tool that fails CI when p95 latency regresses past a budget; used by two teams at Sable.
+
+SKILLS
+Languages: Python, TypeScript, JavaScript, Go, SQL
+Frameworks: Django, FastAPI, React, Next.js, Node.js
+Infrastructure: AWS (ECS, Lambda, S3), Docker, Terraform, GitHub Actions, Airflow
+Data: PostgreSQL, Redis, Elasticsearch, dbt

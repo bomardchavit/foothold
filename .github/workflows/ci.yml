@@ -1,0 +1,35 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env: { POSTGRES_USER: foothold, POSTGRES_PASSWORD: foothold, POSTGRES_DB: foothold }
+        ports: ["54329:5432"]
+        options: --health-cmd "pg_isready -U foothold" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://foothold:foothold@localhost:54329/foothold
+      AUTH_SECRET: ci-secret
+      AUTH_URL: http://localhost:3000
+      DEV_LOGIN: "true"
+      LLM_MODE: heuristic
+      EMBEDDINGS_PROVIDER: local
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run db:seed
+      - run: npm run build:extension
+      - run: npx playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: npm run e2e
+        working-directory: apps/web
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: playwright-report, path: apps/web/playwright-report }

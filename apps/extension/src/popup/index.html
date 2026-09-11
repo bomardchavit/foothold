@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Foothold</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+    body { width: 340px; margin: 0; padding: 14px; background: #f7f3ec; color: #2a2622; font-size: 13px; }
+    h1 { font: 600 16px/1.2 "Iowan Old Style", Georgia, serif; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+    h1 i { width: 10px; height: 10px; border-radius: 50%; background: #c4562f; display: inline-block; }
+    .muted { color: #6b6259; }
+    button { font: inherit; padding: 7px 10px; border-radius: 6px; border: 1px solid #d8cfc2; background: #fff; cursor: pointer; }
+    button.primary { background: #c4562f; border-color: #c4562f; color: #fff; }
+    button:disabled { opacity: .5; cursor: default; }
+    input { font: inherit; width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #d8cfc2; border-radius: 6px; margin: 4px 0 8px; }
+    .row { display: flex; gap: 6px; margin-top: 8px; }
+    ul { list-style: none; padding: 0; margin: 8px 0 0; max-height: 220px; overflow: auto; }
+    li { padding: 4px 0; border-bottom: 1px solid #e8e0d4; display: flex; justify-content: space-between; gap: 8px; }
+    li span:last-child { color: #6b6259; max-width: 55%; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    li.skip span:last-child { color: #a06a2a; }
+    .card { background: #fff; border: 1px solid #e8e0d4; border-radius: 8px; padding: 10px; margin-top: 8px; }
+    .warn { background: #fbe9d7; border-radius: 6px; padding: 8px; margin-top: 8px; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1><i></i> Foothold</h1>
+  <section id="setup">
+    <p class="muted">Pair this extension with your Foothold account. Generate a code in Settings → Chrome extension.</p>
+    <label>App URL<input id="apiBase" value="http://localhost:3000" /></label>
+    <label>Pairing code<input id="code" placeholder="6-character code" autocomplete="off" /></label>
+    <button id="pair" class="primary">Pair</button>
+    <p id="pairError" class="warn" hidden></p>
+  </section>
+  <section id="main" hidden>
+    <p class="muted">Signed in as <b id="email"></b> · <a href="#" id="unpair">unpair</a></p>
+    <div class="card">
+      <div id="detected">Looking at this page…</div>
+      <div class="row">
+        <button id="fill" class="primary" disabled>Fill from profile</button>
+        <button id="track" disabled>Track as applied</button>
+      </div>
+      <p id="status" class="muted"></p>
+    </div>
+    <ul id="results"></ul>
+    <p class="warn">Foothold never submits for you. Check every field, attach anything missing, and press the site's submit button yourself.</p>
+  </section>
+  <script type="module" src="./popup.ts"></script>
+</body>
+</html>

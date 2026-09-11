@@ -1,0 +1,29 @@
+{
+  "name": "foothold",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "setup": "npm install && node scripts/ensure-env.mjs && npm run db:migrate && npm run db:seed",
+    "dev": "npm run dev -w apps/web",
+    "worker": "npm run worker -w apps/web",
+    "build": "npm run build -w apps/web",
+    "db:local": "node scripts/local-postgres.mjs",
+    "db:migrate": "npm run db:migrate -w apps/web",
+    "db:seed": "npm run db:seed -w apps/web",
+    "db:reset": "npm run db:reset -w apps/web",
+    "h1b:load": "npm run h1b:load -w apps/web",
+    "ingest": "npm run ingest -w apps/web",
+    "lint": "npm run lint -w apps/web",
+    "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w packages/shared && npm run typecheck -w apps/extension",
+    "test": "npm run test -w apps/web && npm run test -w packages/shared",
+    "e2e": "npm run e2e -w apps/web",
+    "build:extension": "npm run build -w apps/extension"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

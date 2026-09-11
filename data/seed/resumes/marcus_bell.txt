@@ -1,0 +1,30 @@
+Marcus Bell
+Austin, TX · marcus.bell@example.com · 512-555-0188 · linkedin.com/in/marcusbell
+
+PROFESSIONAL SUMMARY
+Product manager with 6 years in B2B SaaS. Shipped self-serve onboarding, pricing, and analytics products that grew activation 34% and expansion revenue $6M ARR. Data-driven, fluent in SQL, at home with engineers and designers.
+
+WORK EXPERIENCE
+Senior Product Manager, Growth — Oakhaven Enterprise — Austin, TX — Mar 2022 – Present
+• Owned the self-serve funnel for a 40k-customer HR platform; ran 28 A/B tests in Amplitude and raised trial-to-paid conversion from 9.1% to 12.2%.
+• Led pricing and packaging redesign with finance and sales, adding a mid-tier plan that drove $6M in expansion ARR in 12 months.
+• Wrote PRDs and ran discovery for the enterprise admin console with 60 customer interviews.
+• Partnered with data engineering to define the metrics layer in dbt and Looker used by the exec team.
+
+Product Manager — Quillstack — Remote — Jan 2019 – Feb 2022
+• Launched real-time collaborative editing (0 to 120k weekly active editors) working with a team of 8 engineers.
+• Defined roadmap and OKRs for the docs product; shipped Slack and Jira integrations that lifted retention 11 points.
+• Built the churn dashboard in SQL and Mixpanel and instituted a weekly metrics review.
+
+Associate Product Manager — Summit Consulting Group — Chicago, IL — Aug 2017 – Dec 2018
+• Ran requirements gathering and user stories for an internal analytics tool used by 500 consultants.
+• Produced competitive analyses and market sizing for three client engagements.
+
+EDUCATION
+Northwestern University — B.A. Economics, minor in Computer Science — 2013 – 2017
+
+SKILLS
+Product strategy, roadmapping, A/B testing, SQL, Amplitude, Mixpanel, Looker, Figma, Jira, PRDs, user research, pricing, go-to-market, stakeholder management, agile/scrum
+
+CERTIFICATIONS
+Reforge Growth Series (2021)

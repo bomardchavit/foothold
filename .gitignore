@@ -1,0 +1,16 @@
+node_modules
+.next
+out
+dist
+coverage
+storage/
+.pgdata/
+.env
+.env.local
+*.log
+.DS_Store
+playwright-report
+test-results
+apps/web/prisma/generated
+.pglocal/
+.pgvector-src/

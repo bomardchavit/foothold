@@ -1,0 +1,28 @@
+Elena Ortiz
+Chicago, IL | elena.ortiz@example.com | (312) 555-0107 | github.com/eortiz-data
+
+Education
+University of Michigan, Ann Arbor, MI
+M.S. Statistics, May 2023
+B.S. Mathematics, May 2021, GPA 3.8/4.0
+
+Experience
+Data Analyst, Greenfield Grocers, Minneapolis, MN (Remote) — Jun 2023 to Present
+• Built demand forecasting models in Python (scikit-learn, XGBoost) that cut produce waste 8% across 300 stores.
+• Maintain 40+ dbt models and Snowflake pipelines feeding Tableau dashboards for merchandising leaders.
+• Designed and analyzed A/B tests on promotional pricing; presented results to the VP of Merchandising monthly.
+• Automated weekly reporting with Airflow and SQL, saving the team 10 hours per week.
+
+Graduate Research Assistant, University of Michigan — Sep 2021 to May 2023
+• Researched causal inference methods for observational health data; co-authored a paper accepted at JSM 2023.
+• Taught R and Python labs for an introductory statistics course of 120 students.
+
+Data Science Intern, Lumen Health — Jun 2022 to Aug 2022
+• Developed a readmission-risk model (logistic regression, gradient boosting) with AUC 0.81 on 2M patient records.
+
+Projects
+Chicago transit delay predictor — Python, PyTorch, FastAPI, Docker
+• Sequence model predicting CTA bus delays; deployed as a public API with 5k monthly requests.
+
+Skills
+Python, R, SQL, Pandas, scikit-learn, PyTorch, Statistics, Experiment Design, Causal Inference, dbt, Snowflake, Airflow, Tableau, Excel, Git
