@@ -11,6 +11,7 @@ import { careers } from "./careers";
 import { smartrecruiters } from "./smartrecruiters";
 import { workable } from "./workable";
 import { workday } from "./workday";
+import { bamboohr } from "./bamboohr";
 
 export interface SourceRef { slug: string; name: string | null }
 
@@ -38,7 +39,7 @@ export interface SourceAdapter {
 }
 
 const manual: SourceAdapter = { kind: "MANUAL", label: "Added by hand / extension", needsKey: false, async fetchJobs() { return []; } };
-export const ADAPTERS: Record<JobSourceKind, SourceAdapter> = { GREENHOUSE: greenhouse, LEVER: lever, ASHBY: ashby, ADZUNA: adzuna, USAJOBS: usajobs, SEED: seed, MANUAL: manual, CAREERS: careers, SMARTRECRUITERS: smartrecruiters, WORKABLE: workable, WORKDAY: workday };
+export const ADAPTERS: Record<JobSourceKind, SourceAdapter> = { GREENHOUSE: greenhouse, LEVER: lever, ASHBY: ashby, ADZUNA: adzuna, USAJOBS: usajobs, SEED: seed, MANUAL: manual, CAREERS: careers, SMARTRECRUITERS: smartrecruiters, WORKABLE: workable, WORKDAY: workday, BAMBOOHR: bamboohr };
 
 export const USER_AGENT = "Foothold/0.1 (job-search assistant; public-API client)";
 /**

@@ -66,7 +66,7 @@ export async function runSourceAction(id: string): Promise<Result<{ fetched: num
 
 export async function addSourceAction(input: { kind: JobSourceKind; slug: string; name: string }): Promise<Result> {
   await requireUser();
-  const p = z.object({ kind: z.enum(["GREENHOUSE", "LEVER", "ASHBY", "ADZUNA", "USAJOBS", "CAREERS", "SMARTRECRUITERS", "WORKABLE", "WORKDAY"]), slug: z.string().min(1).max(300), name: z.string().max(100) }).safeParse(input);
+  const p = z.object({ kind: z.enum(["GREENHOUSE", "LEVER", "ASHBY", "ADZUNA", "USAJOBS", "CAREERS", "SMARTRECRUITERS", "WORKABLE", "WORKDAY", "BAMBOOHR"]), slug: z.string().min(1).max(300), name: z.string().max(100) }).safeParse(input);
   if (!p.success) return { ok: false, error: "Enter a valid board slug" };
   await prisma.jobSource.upsert({ where: { kind_slug: { kind: p.data.kind, slug: p.data.slug.trim() } }, create: { kind: p.data.kind, slug: p.data.slug.trim(), name: p.data.name.trim() || null, enabled: true }, update: { enabled: true, name: p.data.name.trim() || undefined } });
   revalidatePath("/settings/sources");

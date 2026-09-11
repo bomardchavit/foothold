@@ -49,6 +49,7 @@ async function probeAts(slugs: string[], companyName: string): Promise<Discovere
     { kind: "ASHBY", url: (s) => `https://api.ashbyhq.com/posting-api/job-board/${s}`, check: (j) => (j && typeof j === "object" && "jobs" in j && Array.isArray((j as { jobs: unknown[] }).jobs) && (j as { jobs: unknown[] }).jobs.length > 0 ? "ashby" : false) },
     { kind: "WORKABLE", url: (s) => `https://www.workable.com/api/accounts/${s}`, check: (j) => (j && typeof j === "object" && "jobs" in j && Array.isArray((j as { jobs: unknown[] }).jobs) && (j as { jobs: unknown[] }).jobs.length > 0 && (j as { name?: string }).name && nameOk((j as { name?: string }).name) ? "workable" : false) },
     { kind: "SMARTRECRUITERS", url: (s) => `https://api.smartrecruiters.com/v1/companies/${s}/postings?limit=1`, check: (j) => (j && typeof j === "object" && "totalFound" in j && Number((j as { totalFound: number }).totalFound) > 0 ? "smartrecruiters" : false) },
+    { kind: "BAMBOOHR", url: (s) => `https://${s}.bamboohr.com/careers/list`, check: (j) => (j && typeof j === "object" && "result" in j && Array.isArray((j as { result: unknown[] }).result) && (j as { result: unknown[] }).result.length > 0 ? "bamboohr" : false) },
   ];
   const hit = new Set<JobSourceKind>();
   let probed = 0;

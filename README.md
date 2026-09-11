@@ -103,6 +103,7 @@ Everything comes from public APIs or robots.txt-compliant crawling, with one ide
 | Greenhouse, Lever, Ashby | official public job-board JSON APIs | board token / site / board name |
 | SmartRecruiters, Workable | public posting APIs | company identifier / subdomain |
 | Workday | the JSON the career site itself uses, only where robots.txt allows `/wday/cxs/` | `tenant.wd5/SiteName` |
+| BambooHR | `{subdomain}.bamboohr.com/careers/list` + one detail call per posting | subdomain |
 | Any careers site | crawl job links + sitemap, read schema.org `JobPosting` JSON-LD, render with headless Chromium when the page is JS-only | careers page URL |
 | Adzuna, USAJobs | keyed APIs | search query |
 

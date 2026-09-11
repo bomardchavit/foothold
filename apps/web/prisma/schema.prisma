@@ -152,6 +152,7 @@ enum JobSourceKind {
   SMARTRECRUITERS
   WORKABLE
   WORKDAY
+  BAMBOOHR
 }
 
 enum H1bSignal {
