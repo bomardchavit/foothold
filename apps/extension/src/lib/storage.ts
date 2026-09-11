@@ -1,5 +1,7 @@
 export interface Settings { apiBase: string; token: string | null; email: string | null }
-const DEFAULTS: Settings = { apiBase: "http://localhost:3000", token: null, email: null };
+/** Injected by vite from FOOTHOLD_APP_URL at build time; the popup can override it per install. */
+declare const __FOOTHOLD_APP_URL__: string;
+const DEFAULTS: Settings = { apiBase: __FOOTHOLD_APP_URL__, token: null, email: null };
 export async function getSettings(): Promise<Settings> {
   const s = (await chrome.storage.local.get("settings")).settings as Partial<Settings> | undefined;
   return { ...DEFAULTS, ...(s ?? {}) };

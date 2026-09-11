@@ -1,0 +1,48 @@
+appId: dev.foothold.app
+productName: Foothold
+copyright: Foothold
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - package.json
+extraMetadata:
+  main: dist/main.js
+npmRebuild: false
+protocols:
+  - name: Foothold
+    schemes: [foothold]
+publish:
+  provider: github
+  owner: bomardchavit
+  repo: foothold
+  releaseType: release
+mac:
+  category: public.app-category.productivity
+  darkModeSupport: true
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip   # electron-updater downloads the zip on macOS
+      arch: [arm64, x64]
+dmg:
+  artifactName: Foothold-${version}-${arch}.${ext}
+win:
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+  artifactName: Foothold-Setup-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Foothold
+linux:
+  category: Utility
+  target: [AppImage, deb]
+  artifactName: Foothold-${version}-${arch}.${ext}

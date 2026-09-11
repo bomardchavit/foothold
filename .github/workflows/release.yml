@@ -1,0 +1,65 @@
+name: release
+
+# Push a tag (npm run release -- minor && git push --follow-tags) and this builds the installers,
+# publishes them to the GitHub Release, and attaches the extension zip. The desktop app's updater
+# reads that release, so shipping a tag updates everyone who already installed it.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  desktop:
+    name: desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Build and publish installers
+        working-directory: apps/desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Repository variable: the deployed server new installs open on first launch.
+          FOOTHOLD_APP_URL: ${{ vars.FOOTHOLD_APP_URL }}
+          # macOS signing + notarization. Without these the build still publishes, but macOS users see a
+          # Gatekeeper warning and auto-update cannot install silently.
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.MAC_CSC_LINK != '' }}
+        run: npm run release
+
+  extension:
+    name: extension zip
+    needs: desktop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run build:extension
+        env:
+          FOOTHOLD_APP_URL: ${{ vars.FOOTHOLD_APP_URL }}
+      - name: Attach the zip to the release
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
+        run: gh release upload "${GITHUB_REF_NAME}" apps/extension/release/*.zip --clobber
+      - name: Publish to the Chrome Web Store
+        if: ${{ secrets.CHROME_CLIENT_ID != '' }}
+        env:
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+        run: npx --yes chrome-webstore-upload-cli@3 upload --source apps/extension/release/*.zip --auto-publish

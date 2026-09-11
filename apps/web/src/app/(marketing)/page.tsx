@@ -10,7 +10,10 @@ export default async function Landing() {
     <main className="mx-auto flex min-h-screen max-w-5xl flex-col px-6">
       <header className="flex items-center justify-between py-6">
         <Wordmark />
-        <Button asChild variant="outline"><Link href="/sign-in">Sign in</Link></Button>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="ghost"><Link href="/download">Download</Link></Button>
+          <Button asChild variant="outline"><Link href="/sign-in">Sign in</Link></Button>
+        </div>
       </header>
       <section className="grid flex-1 items-center gap-12 py-12 md:grid-cols-[1.2fr_1fr]">
         <div>
@@ -22,6 +25,7 @@ export default async function Landing() {
           <div className="mt-8 flex gap-3">
             <Button asChild size="lg"><Link href="/sign-in">Get started</Link></Button>
             <Button asChild size="lg" variant="ghost"><a href="#how">How it works</a></Button>
+            <Button asChild size="lg" variant="ghost"><Link href="/download">Get the app</Link></Button>
           </div>
         </div>
         <ul className="space-y-4 rounded-2xl border bg-card p-6 shadow-sm">

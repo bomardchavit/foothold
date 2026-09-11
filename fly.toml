@@ -1,0 +1,41 @@
+# Foothold server. `fly launch --no-deploy` once to create the app, then:
+#   fly volumes create foothold_data --size 3
+#   fly secrets set DATABASE_URL=... AUTH_SECRET=... AUTH_URL=https://<app>.fly.dev APP_URL=https://<app>.fly.dev
+#   fly deploy
+app = "foothold"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  JOBS_MODE = "inline"
+  JOBS_COUNTRIES = "US"
+  SCRAPE_INTERVAL_MIN = "120"
+  STORAGE_DIR = "/data/storage"
+
+# Logos and generated résumés live on disk; the scraper scheduler needs the machine to stay up.
+[[mounts]]
+  source = "foothold_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/api/version"
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"

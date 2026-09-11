@@ -25,7 +25,7 @@ async function refresh() {
   const det = $("detected");
   if (!scan) { det.textContent = "Open a Greenhouse or Lever application page to fill it."; return; }
   if (!scan.ats) { det.textContent = "This site is not a supported ATS yet (Greenhouse and Lever are)."; return; }
-  det.innerHTML = `<b>${scan.ats[0].toUpperCase() + scan.ats.slice(1)}</b> form · ${scan.fields.length} recognised field${scan.fields.length === 1 ? "" : "s"}<br><span class="muted">${scan.title}${scan.company ? ` · ${scan.company}` : ""}</span>`;
+  det.innerHTML = `<b>${esc(scan.ats[0].toUpperCase() + scan.ats.slice(1))}</b> form · ${scan.fields.length} recognised field${scan.fields.length === 1 ? "" : "s"}<br><span class="muted">${esc(scan.title ?? "")}${scan.company ? ` · ${esc(scan.company)}` : ""}</span>`;
   ($("fill") as HTMLButtonElement).disabled = scan.fields.length === 0;
   ($("track") as HTMLButtonElement).disabled = false;
 }

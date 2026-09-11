@@ -18,12 +18,16 @@
     "h1b:load": "npm run h1b:load -w apps/web",
     "ingest": "npm run ingest -w apps/web",
     "lint": "npm run lint -w apps/web",
-    "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w packages/shared && npm run typecheck -w apps/extension",
+    "typecheck": "npm run typecheck -w apps/web && npm run typecheck -w packages/shared && npm run typecheck -w apps/extension && npm run typecheck -w @foothold/desktop",
     "test": "npm run test -w apps/web && npm run test -w packages/shared",
     "e2e": "npm run e2e -w apps/web",
     "build:extension": "npm run build -w apps/extension",
     "scrape": "npm run ingest -w apps/web --",
-    "scrape:watch": "npm run ingest -w apps/web -- --watch 30"
+    "scrape:watch": "npm run ingest -w apps/web -- --watch 30",
+    "desktop": "npm run start -w @foothold/desktop",
+    "desktop:build": "npm run build -w @foothold/desktop",
+    "desktop:dist": "npm run dist -w @foothold/desktop",
+    "release": "node scripts/release.mjs"
   },
   "engines": {
     "node": ">=22"

@@ -1,0 +1,28 @@
+{
+  "name": "@foothold/desktop",
+  "productName": "Foothold",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Foothold desktop app",
+  "author": "Foothold",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs --watch",
+    "start": "npm run build && electron .",
+    "pack": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "release": "npm run build && electron-builder --publish always",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "electron": "38.8.6",
+    "electron-builder": "26.15.3",
+    "esbuild": "^0.25.0",
+    "typescript": "^5"
+  }
+}

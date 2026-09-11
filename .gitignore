@@ -15,3 +15,4 @@ apps/web/prisma/generated
 .pglocal/
 .pgvector-src/
 data/exports/
+release/

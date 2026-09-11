@@ -4,6 +4,49 @@ Find your footing in the job search. Foothold turns a résumé into a structured
 
 Everything the AI produces shows what changed and why. Jobs come from public APIs and a seed dataset only. Contacts come from your own LinkedIn export or manual entry.
 
+## Install it
+
+| Surface | What it is | Updates |
+|---|---|---|
+| Web | The app itself, at your deployment's URL. | Continuous: every deploy. |
+| Desktop | An Electron shell around that deployment (`apps/desktop`): own window, Dock icon, no tabs. | Checks GitHub Releases on launch and every 6 hours, downloads in the background, installs on restart. Screens come from the server, so most changes need no new installer. |
+| Chrome extension | Autofill for Greenhouse, Lever, Ashby and Workday (`apps/extension`). | Chrome Web Store builds update themselves; an unpacked build has to be replaced by hand. |
+
+`/download` lists the installers for the latest GitHub Release (and says so plainly when none is published yet).
+
+```bash
+npm run desktop              # run the desktop shell against a local server
+npm run desktop:dist         # build installers into apps/desktop/release
+FOOTHOLD_APP_URL=https://foothold.example.com npm run desktop:dist   # bake in the server for distribution
+npm run build:extension      # dist/ for "Load unpacked" + a store-ready zip in apps/extension/release
+```
+
+On first launch the desktop app asks for a server address (or uses the one baked in at build time) and checks
+`/api/version` before saving it. Magic-link emails open in the browser, not in the app, so the app has a
+**File → Paste Sign-in Link…** screen; Google sign-in works in the window directly.
+
+## Ship an update
+
+```bash
+npm run release -- minor     # bumps web, desktop and extension to one version, commits, tags
+git push --follow-tags       # the tag builds and publishes installers; main deploys the server
+```
+
+`.github/workflows/release.yml` builds macOS, Windows and Linux installers and publishes them to the GitHub
+Release that the desktop updater reads, then attaches the extension zip. `.github/workflows/deploy.yml` pushes
+the server image to GHCR and deploys it (Fly.io config in `fly.toml`). Repository variable `FOOTHOLD_APP_URL`
+is baked into the shipped desktop app and extension.
+
+Signing, which affects how updates behave:
+
+- **macOS**: without `MAC_CSC_LINK`/`APPLE_ID` secrets the build still publishes, but users see a Gatekeeper
+  warning and silent auto-update does not work. With a Developer ID it is seamless.
+- **Windows**: unsigned NSIS installs and auto-updates fine; SmartScreen warns on first run until the
+  certificate (or reputation) exists.
+- **Chrome**: only Web Store listings auto-update. Self-hosted CRX auto-update works on Edge and via
+  enterprise policy, not stock Chrome.
+
+
 ## Run it in 15 minutes
 
 Requirements: **Node 22+** and one of Docker, macOS, or your own PostgreSQL 17 with `pgvector` and `pg_trgm`.

@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "build": "vite build && node scripts/zip.mjs",
+    "typecheck": "tsc --noEmit",
+    "build:zip": "node scripts/zip.mjs"
   },
   "dependencies": {
     "@foothold/shared": "*",
