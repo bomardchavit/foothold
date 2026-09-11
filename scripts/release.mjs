@@ -27,6 +27,9 @@ for (const p of PKGS) {
   writeFileSync(p, JSON.stringify(json, null, 2) + "\n");
 }
 execFileSync("git", ["add", ...PKGS], { stdio: "inherit" });
-execFileSync("git", ["commit", "-m", `Release v${next}`], { stdio: "inherit" });
+const staged = execFileSync("git", ["diff", "--cached", "--name-only"], { encoding: "utf8" }).trim();
+// Re-tagging the current version (nothing to bump) is a normal thing to want: tag what is already there.
+if (staged) execFileSync("git", ["commit", "-m", `Release v${next}`], { stdio: "inherit" });
+else console.log(`Already at ${next}; tagging the current commit.`);
 execFileSync("git", ["tag", "-a", `v${next}`, "-m", `v${next}`], { stdio: "inherit" });
 console.log(`\nTagged v${next} (was ${current}).\nPush it to build and publish installers:\n\n  git push && git push origin v${next}\n`);
